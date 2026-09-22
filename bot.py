@@ -14,7 +14,7 @@ from discord import app_commands
 
 TOKEN = os.getenv("MEMBERCOUNT_TOKEN")
 
-# Los 3 servidores
+# Servidores conocidos
 GUILD_IDS = [
     1549084302489165967,
     1550942985984942201,
@@ -33,7 +33,7 @@ intents.message_content = True
 
 
 # =========================================================
-# BASE DE DATOS DE PREFIJOS
+# BASE DE DATOS - PREFIJOS
 # =========================================================
 
 PREFIX_DB = "prefixes.db"
@@ -80,7 +80,7 @@ def get_bot_prefix(bot, message):
 
 
 # =========================================================
-# BASE DE DATOS DE MENSAJES
+# BASE DE DATOS - MENSAJES
 # =========================================================
 
 MESSAGES_DB = "messages.db"
@@ -99,12 +99,10 @@ with sqlite3.connect(MESSAGES_DB) as conn:
 
 
 # =========================================================
-# BASE DE DATOS DE AJUSTES DE ESTADÍSTICAS
+# BASE DE DATOS - AJUSTES
 # =========================================================
 
-ADJUSTMENTS_DB = "messages.db"
-
-with sqlite3.connect(ADJUSTMENTS_DB) as conn:
+with sqlite3.connect(MESSAGES_DB) as conn:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS message_adjustments (
             guild_id INTEGER NOT NULL,
@@ -119,12 +117,9 @@ with sqlite3.connect(ADJUSTMENTS_DB) as conn:
     conn.commit()
 
 
-# =========================================================
-# MIGRACIÓN DE BASE DE DATOS
-# =========================================================
-
 def migrate_adjustment_table():
-    with sqlite3.connect(ADJUSTMENTS_DB) as conn:
+
+    with sqlite3.connect(MESSAGES_DB) as conn:
 
         columns = conn.execute(
             "PRAGMA table_info(message_adjustments)"
@@ -133,12 +128,14 @@ def migrate_adjustment_table():
         column_names = [column[1] for column in columns]
 
         if "reference_real" not in column_names:
+
             conn.execute("""
                 ALTER TABLE message_adjustments
                 ADD COLUMN reference_real INTEGER NOT NULL DEFAULT 0
             """)
 
         if "period_start" not in column_names:
+
             conn.execute("""
                 ALTER TABLE message_adjustments
                 ADD COLUMN period_start TEXT
@@ -155,6 +152,7 @@ migrate_adjustment_table()
 # =========================================================
 
 def get_period_starts():
+
     now = datetime.now(timezone.utc)
 
     today_start = now.replace(
@@ -168,7 +166,9 @@ def get_period_starts():
         days=today_start.weekday()
     )
 
-    month_start = today_start.replace(day=1)
+    month_start = today_start.replace(
+        day=1
+    )
 
     year_start = today_start.replace(
         month=1,
@@ -184,14 +184,19 @@ def get_period_starts():
 
 
 # =========================================================
-# CONTAR MENSAJES
+# CONTADORES
 # =========================================================
 
-def count_messages(guild_id, user_id, start_time=None):
+def count_messages(
+    guild_id,
+    user_id,
+    start_time=None
+):
 
     with sqlite3.connect(MESSAGES_DB) as conn:
 
         if start_time is None:
+
             row = conn.execute("""
                 SELECT COUNT(*)
                 FROM messages
@@ -203,6 +208,7 @@ def count_messages(guild_id, user_id, start_time=None):
             )).fetchone()
 
         else:
+
             row = conn.execute("""
                 SELECT COUNT(*)
                 FROM messages
@@ -218,7 +224,10 @@ def count_messages(guild_id, user_id, start_time=None):
     return row[0]
 
 
-def count_total_messages(guild_id, user_id):
+def count_total_messages(
+    guild_id,
+    user_id
+):
 
     with sqlite3.connect(MESSAGES_DB) as conn:
 
@@ -236,12 +245,16 @@ def count_total_messages(guild_id, user_id):
 
 
 # =========================================================
-# AJUSTES DE ESTADÍSTICAS
+# AJUSTES
 # =========================================================
 
-def get_adjustment(guild_id, user_id, period):
+def get_adjustment(
+    guild_id,
+    user_id,
+    period
+):
 
-    with sqlite3.connect(ADJUSTMENTS_DB) as conn:
+    with sqlite3.connect(MESSAGES_DB) as conn:
 
         conn.row_factory = sqlite3.Row
 
@@ -272,7 +285,7 @@ def set_adjustment(
     period_start
 ):
 
-    with sqlite3.connect(ADJUSTMENTS_DB) as conn:
+    with sqlite3.connect(MESSAGES_DB) as conn:
 
         conn.execute("""
             INSERT INTO message_adjustments
@@ -303,7 +316,12 @@ def set_adjustment(
         conn.commit()
 
 
-def prepare_aset(guild_id, user_id, period, amount):
+def prepare_aset(
+    guild_id,
+    user_id,
+    period,
+    amount
+):
 
     (
         today_start,
@@ -352,15 +370,18 @@ def prepare_aset(guild_id, user_id, period, amount):
         period_start = None
 
     else:
-        raise ValueError("Periodo inválido")
+
+        raise ValueError(
+            "Periodo inválido"
+        )
 
     set_adjustment(
-        guild_id=guild_id,
-        user_id=user_id,
-        period=period,
-        amount=amount,
-        reference_real=real_count,
-        period_start=period_start
+        guild_id,
+        user_id,
+        period,
+        amount,
+        real_count,
+        period_start
     )
 
 
@@ -391,6 +412,7 @@ def calculate_adjusted_value(
         return real_count
 
     saved_period_start = adjustment["period_start"]
+
     current_period_start = start_time.isoformat()
 
     if saved_period_start != current_period_start:
@@ -404,12 +426,11 @@ def calculate_adjusted_value(
     if messages_after_adjustment < 0:
         messages_after_adjustment = 0
 
-    result = (
+    return max(
+        0,
         adjustment["amount"] +
         messages_after_adjustment
     )
-
-    return max(0, result)
 
 
 def calculate_adjusted_total(
@@ -439,12 +460,11 @@ def calculate_adjusted_total(
     if messages_after_adjustment < 0:
         messages_after_adjustment = 0
 
-    result = (
+    return max(
+        0,
         adjustment["amount"] +
         messages_after_adjustment
     )
-
-    return max(0, result)
 
 
 # =========================================================
@@ -455,29 +475,24 @@ class MyBot(commands.Bot):
 
     async def setup_hook(self):
 
-        print("🔄 Sincronizando slash commands...")
+        print(
+            "🔄 Sincronizando slash commands globalmente..."
+        )
 
-        for guild_id in GUILD_IDS:
+        try:
 
-            guild = discord.Object(id=guild_id)
+            synced = await self.tree.sync()
 
-            try:
+            print(
+                f"✅ {len(synced)} slash commands "
+                f"sincronizados globalmente."
+            )
 
-                synced = await self.tree.sync(
-                    guild=guild
-                )
+        except Exception as e:
 
-                print(
-                    f"✅ {len(synced)} slash commands "
-                    f"sincronizados en {guild_id}"
-                )
-
-            except Exception as e:
-
-                print(
-                    f"❌ Error sincronizando "
-                    f"{guild_id}: {e}"
-                )
+            print(
+                f"❌ Error sincronizando slash commands: {e}"
+            )
 
 
 bot = MyBot(
@@ -493,38 +508,69 @@ bot = MyBot(
 @bot.event
 async def on_ready():
 
-    print("=" * 50)
-    print(f"🤖 Bot conectado como {bot.user}")
-    print(f"🆔 ID del bot: {bot.user.id}")
-    print("=" * 50)
+    print("=" * 55)
 
-    print("🧠 Sistema de estadísticas cargado")
-    print("📊 /am y ?am cargados")
-    print("➕ /aset y ?aset cargados")
-    print("👤 AM: todos los usuarios")
-    print("👑 ASET: solo administradores")
-    print("🏠 Servidores configurados:")
+    print(
+        f"🤖 Bot conectado como {bot.user}"
+    )
+
+    print(
+        f"🆔 ID: {bot.user.id}"
+    )
+
+    print("=" * 55)
+
+    print(
+        "🧠 Sistema de estadísticas cargado"
+    )
+
+    print(
+        "📊 /am y ?am cargados"
+    )
+
+    print(
+        "➕ /aset y ?aset cargados"
+    )
+
+    print(
+        "👤 AM: todos los usuarios"
+    )
+
+    print(
+        "👑 ASET: solo administradores"
+    )
+
+    print(
+        "🌎 Slash commands: GLOBAL"
+    )
+
+    print(
+        "🏠 Servidores configurados:"
+    )
 
     for guild_id in GUILD_IDS:
 
         guild = bot.get_guild(guild_id)
 
         if guild:
+
             print(
                 f"   ✅ {guild.name} "
                 f"({guild.id})"
             )
+
         else:
+
             print(
-                f"   ❌ No está en el servidor "
+                f"   ❌ No conectado a "
                 f"{guild_id}"
             )
 
-    print("=" * 50)
+    print("=" * 55)
 
 
 # =========================================================
-# REGISTRAR MENSAJES
+# GUARDAR MENSAJES
 # =========================================================
 
 @bot.event
@@ -564,17 +610,17 @@ async def on_message(message):
 # MEMBERCOUNT
 # =========================================================
 
-@bot.command(name="membercount")
+@bot.command(
+    name="membercount"
+)
 async def membercount_prefix(ctx):
 
-    guild = ctx.guild
-
-    if guild is None:
+    if ctx.guild is None:
         return
 
     await ctx.send(
         f"👥 **Miembros del servidor:** "
-        f"{guild.member_count}"
+        f"{ctx.guild.member_count}"
     )
 
 
@@ -586,22 +632,22 @@ async def membercount_slash(
     interaction: discord.Interaction
 ):
 
-    guild = interaction.guild
-
-    if guild is None:
+    if interaction.guild is None:
         return
 
     await interaction.response.send_message(
         f"👥 **Miembros del servidor:** "
-        f"{guild.member_count}"
+        f"{interaction.guild.member_count}"
     )
 
 
 # =========================================================
-# AM - PREFIJO
+# AM - PREFIX
 # =========================================================
 
-@bot.command(name="am")
+@bot.command(
+    name="am"
+)
 async def am_prefix(
     ctx,
     member: discord.Member = None
@@ -652,7 +698,10 @@ async def am_prefix(
     )
 
     embed = discord.Embed(
-        title=f"📊 Estadísticas de {target.display_name}",
+        title=(
+            f"📊 Estadísticas de "
+            f"{target.display_name}"
+        ),
         description=(
             f"**Hoy:** {today}\n"
             f"**Esta semana:** {week}\n"
@@ -667,105 +716,106 @@ async def am_prefix(
         url=target.display_avatar.url
     )
 
-    await ctx.send(embed=embed)
-
-
-# =========================================================
-# AM - SLASH
-# =========================================================
-
-for guild_id in GUILD_IDS:
-
-    guild = discord.Object(id=guild_id)
-
-    @bot.tree.command(
-        name="am",
-        description="Muestra las estadísticas de mensajes",
-        guild=guild
+    await ctx.send(
+        embed=embed
     )
-    @app_commands.describe(
-        member="Usuario cuyas estadísticas quieres ver"
-    )
-    async def am_slash(
-        interaction: discord.Interaction,
-        member: discord.Member = None
-    ):
-
-        if interaction.guild is None:
-            return
-
-        target = member or interaction.user
-
-        (
-            today_start,
-            week_start,
-            month_start,
-            year_start
-        ) = get_period_starts()
-
-        today = calculate_adjusted_value(
-            interaction.guild.id,
-            target.id,
-            "hoy",
-            today_start
-        )
-
-        week = calculate_adjusted_value(
-            interaction.guild.id,
-            target.id,
-            "semana",
-            week_start
-        )
-
-        month = calculate_adjusted_value(
-            interaction.guild.id,
-            target.id,
-            "mes",
-            month_start
-        )
-
-        year = count_messages(
-            interaction.guild.id,
-            target.id,
-            year_start
-        )
-
-        total = calculate_adjusted_total(
-            interaction.guild.id,
-            target.id
-        )
-
-        embed = discord.Embed(
-            title=(
-                f"📊 Estadísticas de "
-                f"{target.display_name}"
-            ),
-            description=(
-                f"**Hoy:** {today}\n"
-                f"**Esta semana:** {week}\n"
-                f"**Este mes:** {month}\n"
-                f"**Este año:** {year}\n"
-                f"**Total:** {total}"
-            ),
-            color=discord.Color.blurple()
-        )
-
-        embed.set_thumbnail(
-            url=target.display_avatar.url
-        )
-
-        await interaction.response.send_message(
-            embed=embed
-        )
 
 
 # =========================================================
-# ASET - PREFIJO
+# AM - SLASH GLOBAL
+# =========================================================
+
+@bot.tree.command(
+    name="am",
+    description="Muestra las estadísticas de mensajes"
+)
+@app_commands.describe(
+    member="Usuario cuyas estadísticas quieres ver"
+)
+async def am_slash(
+    interaction: discord.Interaction,
+    member: discord.Member = None
+):
+
+    if interaction.guild is None:
+        return
+
+    target = member or interaction.user
+
+    (
+        today_start,
+        week_start,
+        month_start,
+        year_start
+    ) = get_period_starts()
+
+    today = calculate_adjusted_value(
+        interaction.guild.id,
+        target.id,
+        "hoy",
+        today_start
+    )
+
+    week = calculate_adjusted_value(
+        interaction.guild.id,
+        target.id,
+        "semana",
+        week_start
+    )
+
+    month = calculate_adjusted_value(
+        interaction.guild.id,
+        target.id,
+        "mes",
+        month_start
+    )
+
+    year = count_messages(
+        interaction.guild.id,
+        target.id,
+        year_start
+    )
+
+    total = calculate_adjusted_total(
+        interaction.guild.id,
+        target.id
+    )
+
+    embed = discord.Embed(
+        title=(
+            f"📊 Estadísticas de "
+            f"{target.display_name}"
+        ),
+        description=(
+            f"**Hoy:** {today}\n"
+            f"**Esta semana:** {week}\n"
+            f"**Este mes:** {month}\n"
+            f"**Este año:** {year}\n"
+            f"**Total:** {total}"
+        ),
+        color=discord.Color.blurple()
+    )
+
+    embed.set_thumbnail(
+        url=target.display_avatar.url
+    )
+
+    await interaction.response.send_message(
+        embed=embed
+    )
+
+
+# =========================================================
+# ASET - PREFIX
 # SOLO ADMINISTRADORES
 # =========================================================
 
-@bot.command(name="aset")
-@commands.has_permissions(administrator=True)
+@bot.command(
+    name="aset"
+)
+@commands.has_permissions(
+    administrator=True
+)
 async def aset_prefix(
     ctx,
     period: str,
@@ -775,6 +825,7 @@ async def aset_prefix(
     period = period.lower()
 
     equivalencias = {
+
         "hoy": "hoy",
         "día": "hoy",
         "dia": "hoy",
@@ -792,7 +843,8 @@ async def aset_prefix(
     if period not in equivalencias:
 
         await ctx.send(
-            "❌ Usa: `hoy`, `semana`, `mes` o `total`."
+            "❌ Usa: `hoy`, `semana`, "
+            "`mes` o `total`."
         )
 
         return
@@ -815,90 +867,88 @@ async def aset_prefix(
     )
 
     await ctx.send(
-        f"✅ Estadística de **{period}** "
-        f"establecida en **{amount}**.\n"
+        f"✅ **{period}** establecido en "
+        f"**{amount}**.\n"
         f"Los nuevos mensajes se sumarán "
         f"a partir de ahora."
     )
 
 
 # =========================================================
-# ASET - SLASH
-# SOLO ADMINISTRADORES
+# ASET - SLASH GLOBAL
 # =========================================================
 
-for guild_id in GUILD_IDS:
-
-    guild = discord.Object(id=guild_id)
-
-    @bot.tree.command(
-        name="aset",
-        description="Establece una cantidad inicial de mensajes",
-        guild=guild
-    )
-    @app_commands.describe(
-        period="Periodo que quieres modificar",
-        amount="Cantidad inicial"
-    )
-    @app_commands.choices(
-        period=[
-            app_commands.Choice(
-                name="Hoy",
-                value="hoy"
-            ),
-            app_commands.Choice(
-                name="Esta semana",
-                value="semana"
-            ),
-            app_commands.Choice(
-                name="Este mes",
-                value="mes"
-            ),
-            app_commands.Choice(
-                name="Total",
-                value="total"
-            )
-        ]
-    )
-    @app_commands.checks.has_permissions(
-        administrator=True
-    )
-    async def aset_slash(
-        interaction: discord.Interaction,
-        period: app_commands.Choice[str],
-        amount: int
-    ):
-
-        if amount < 0:
-
-            await interaction.response.send_message(
-                "❌ La cantidad no puede ser negativa.",
-                ephemeral=True
-            )
-
-            return
-
-        prepare_aset(
-            interaction.guild.id,
-            interaction.user.id,
-            period.value,
-            amount
+@bot.tree.command(
+    name="aset",
+    description="Establece una cantidad inicial de mensajes"
+)
+@app_commands.describe(
+    period="Periodo que quieres modificar",
+    amount="Cantidad inicial"
+)
+@app_commands.choices(
+    period=[
+        app_commands.Choice(
+            name="Hoy",
+            value="hoy"
+        ),
+        app_commands.Choice(
+            name="Esta semana",
+            value="semana"
+        ),
+        app_commands.Choice(
+            name="Este mes",
+            value="mes"
+        ),
+        app_commands.Choice(
+            name="Total",
+            value="total"
         )
+    ]
+)
+@app_commands.checks.has_permissions(
+    administrator=True
+)
+async def aset_slash(
+    interaction: discord.Interaction,
+    period: app_commands.Choice[str],
+    amount: int
+):
+
+    if amount < 0:
 
         await interaction.response.send_message(
-            f"✅ **{period.name}** establecido en "
-            f"**{amount}**.\n"
-            f"Los nuevos mensajes se sumarán "
-            f"a partir de ahora."
+            "❌ La cantidad no puede ser negativa.",
+            ephemeral=True
         )
+
+        return
+
+    prepare_aset(
+        interaction.guild.id,
+        interaction.user.id,
+        period.value,
+        amount
+    )
+
+    await interaction.response.send_message(
+        f"✅ **{period.name}** establecido en "
+        f"**{amount}**.\n"
+        f"Los nuevos mensajes se sumarán "
+        f"a partir de ahora."
+    )
 
 
 # =========================================================
 # BAN
 # =========================================================
 
-@bot.command(name="ban")
-@commands.has_permissions(ban_members=True)
+@bot.command(
+    name="ban"
+)
+@commands.has_permissions(
+    ban_members=True
+)
 async def ban_prefix(
     ctx,
     member: discord.Member,
@@ -906,48 +956,51 @@ async def ban_prefix(
     reason: str = "Sin razón especificada"
 ):
 
-    await member.ban(reason=reason)
+    await member.ban(
+        reason=reason
+    )
 
     await ctx.send(
         f"🔨 {member.mention} ha sido baneado."
     )
 
 
-for guild_id in GUILD_IDS:
+@bot.tree.command(
+    name="ban",
+    description="Banea a un miembro"
+)
+@app_commands.describe(
+    member="Miembro que quieres banear",
+    reason="Razón del baneo"
+)
+@app_commands.checks.has_permissions(
+    ban_members=True
+)
+async def ban_slash(
+    interaction: discord.Interaction,
+    member: discord.Member,
+    reason: str = "Sin razón especificada"
+):
 
-    guild = discord.Object(id=guild_id)
-
-    @bot.tree.command(
-        name="ban",
-        description="Banea a un miembro",
-        guild=guild
+    await member.ban(
+        reason=reason
     )
-    @app_commands.describe(
-        member="Miembro que quieres banear",
-        reason="Razón del baneo"
-    )
-    @app_commands.checks.has_permissions(
-        ban_members=True
-    )
-    async def ban_slash(
-        interaction: discord.Interaction,
-        member: discord.Member,
-        reason: str = "Sin razón especificada"
-    ):
 
-        await member.ban(reason=reason)
-
-        await interaction.response.send_message(
-            f"🔨 {member.mention} ha sido baneado."
-        )
+    await interaction.response.send_message(
+        f"🔨 {member.mention} ha sido baneado."
+    )
 
 
 # =========================================================
 # KICK
 # =========================================================
 
-@bot.command(name="kick")
-@commands.has_permissions(kick_members=True)
+@bot.command(
+    name="kick"
+)
+@commands.has_permissions(
+    kick_members=True
+)
 async def kick_prefix(
     ctx,
     member: discord.Member,
@@ -955,48 +1008,51 @@ async def kick_prefix(
     reason: str = "Sin razón especificada"
 ):
 
-    await member.kick(reason=reason)
+    await member.kick(
+        reason=reason
+    )
 
     await ctx.send(
         f"👢 {member.mention} ha sido expulsado."
     )
 
 
-for guild_id in GUILD_IDS:
+@bot.tree.command(
+    name="kick",
+    description="Expulsa a un miembro"
+)
+@app_commands.describe(
+    member="Miembro que quieres expulsar",
+    reason="Razón de la expulsión"
+)
+@app_commands.checks.has_permissions(
+    kick_members=True
+)
+async def kick_slash(
+    interaction: discord.Interaction,
+    member: discord.Member,
+    reason: str = "Sin razón especificada"
+):
 
-    guild = discord.Object(id=guild_id)
-
-    @bot.tree.command(
-        name="kick",
-        description="Expulsa a un miembro",
-        guild=guild
+    await member.kick(
+        reason=reason
     )
-    @app_commands.describe(
-        member="Miembro que quieres expulsar",
-        reason="Razón de la expulsión"
-    )
-    @app_commands.checks.has_permissions(
-        kick_members=True
-    )
-    async def kick_slash(
-        interaction: discord.Interaction,
-        member: discord.Member,
-        reason: str = "Sin razón especificada"
-    ):
 
-        await member.kick(reason=reason)
-
-        await interaction.response.send_message(
-            f"👢 {member.mention} ha sido expulsado."
-        )
+    await interaction.response.send_message(
+        f"👢 {member.mention} ha sido expulsado."
+    )
 
 
 # =========================================================
 # UNBAN
 # =========================================================
 
-@bot.command(name="unban")
-@commands.has_permissions(ban_members=True)
+@bot.command(
+    name="unban"
+)
+@commands.has_permissions(
+    ban_members=True
+)
 async def unban_prefix(
     ctx,
     user_id: int
@@ -1004,9 +1060,13 @@ async def unban_prefix(
 
     try:
 
-        user = await bot.fetch_user(user_id)
+        user = await bot.fetch_user(
+            user_id
+        )
 
-        await ctx.guild.unban(user)
+        await ctx.guild.unban(
+            user
+        )
 
         await ctx.send(
             f"✅ {user} ha sido desbaneado."
@@ -1015,48 +1075,47 @@ async def unban_prefix(
     except discord.NotFound:
 
         await ctx.send(
-            "❌ No encontré ese usuario entre los baneados."
+            "❌ No encontré ese usuario "
+            "entre los baneados."
         )
 
 
-for guild_id in GUILD_IDS:
+@bot.tree.command(
+    name="unban",
+    description="Desbanea un usuario mediante su ID"
+)
+@app_commands.describe(
+    user_id="ID del usuario"
+)
+@app_commands.checks.has_permissions(
+    ban_members=True
+)
+async def unban_slash(
+    interaction: discord.Interaction,
+    user_id: str
+):
 
-    guild = discord.Object(id=guild_id)
+    try:
 
-    @bot.tree.command(
-        name="unban",
-        description="Desbanea un usuario mediante su ID",
-        guild=guild
-    )
-    @app_commands.describe(
-        user_id="ID del usuario"
-    )
-    @app_commands.checks.has_permissions(
-        ban_members=True
-    )
-    async def unban_slash(
-        interaction: discord.Interaction,
-        user_id: str
-    ):
+        user = await bot.fetch_user(
+            int(user_id)
+        )
 
-        try:
+        await interaction.guild.unban(
+            user
+        )
 
-            user = await bot.fetch_user(
-                int(user_id)
-            )
+        await interaction.response.send_message(
+            f"✅ {user} ha sido desbaneado."
+        )
 
-            await interaction.guild.unban(user)
+    except (discord.NotFound, ValueError):
 
-            await interaction.response.send_message(
-                f"✅ {user} ha sido desbaneado."
-            )
-
-        except (discord.NotFound, ValueError):
-
-            await interaction.response.send_message(
-                "❌ No encontré ese usuario entre los baneados.",
-                ephemeral=True
-            )
+        await interaction.response.send_message(
+            "❌ No encontré ese usuario "
+            "entre los baneados.",
+            ephemeral=True
+        )
 
 
 # =========================================================
@@ -1067,7 +1126,9 @@ for guild_id in GUILD_IDS:
     name="setnick",
     aliases=["nick"]
 )
-@commands.has_permissions(manage_nicknames=True)
+@commands.has_permissions(
+    manage_nicknames=True
+)
 async def setnick_prefix(
     ctx,
     member: discord.Member = None,
@@ -1076,6 +1137,14 @@ async def setnick_prefix(
 ):
 
     if member is None:
+
+        if nickname is None:
+
+            await ctx.send(
+                "❌ Especifica el nuevo nickname."
+            )
+
+            return
 
         await ctx.author.edit(
             nick=nickname
@@ -1098,7 +1167,8 @@ async def setnick_prefix(
     if member == ctx.guild.owner:
 
         await ctx.send(
-            "❌ No puedo cambiar el nickname del dueño."
+            "❌ No puedo cambiar el nickname "
+            "del dueño."
         )
 
         return
@@ -1106,7 +1176,8 @@ async def setnick_prefix(
     if member.top_role >= ctx.guild.me.top_role:
 
         await ctx.send(
-            "❌ No puedo cambiar el nickname de ese usuario."
+            "❌ No puedo cambiar el nickname "
+            "de ese usuario."
         )
 
         return
@@ -1116,67 +1187,68 @@ async def setnick_prefix(
     )
 
     await ctx.send(
-        f"✅ Nickname de {member.mention} cambiado a "
-        f"**{nickname}**."
+        f"✅ Nickname de {member.mention} "
+        f"cambiado a **{nickname}**."
     )
 
 
-for guild_id in GUILD_IDS:
+@bot.tree.command(
+    name="setnick",
+    description="Cambia el nickname de un usuario"
+)
+@app_commands.describe(
+    member="Usuario",
+    nickname="Nuevo nickname"
+)
+@app_commands.checks.has_permissions(
+    manage_nicknames=True
+)
+async def setnick_slash(
+    interaction: discord.Interaction,
+    member: discord.Member,
+    nickname: str
+):
 
-    guild = discord.Object(id=guild_id)
-
-    @bot.tree.command(
-        name="setnick",
-        description="Cambia el nickname de un usuario",
-        guild=guild
-    )
-    @app_commands.describe(
-        member="Usuario",
-        nickname="Nuevo nickname"
-    )
-    @app_commands.checks.has_permissions(
-        manage_nicknames=True
-    )
-    async def setnick_slash(
-        interaction: discord.Interaction,
-        member: discord.Member,
-        nickname: str
-    ):
-
-        if member == interaction.guild.owner:
-
-            await interaction.response.send_message(
-                "❌ No puedo cambiar el nickname del dueño.",
-                ephemeral=True
-            )
-
-            return
-
-        if member.top_role >= interaction.guild.me.top_role:
-
-            await interaction.response.send_message(
-                "❌ No puedo cambiar el nickname de ese usuario.",
-                ephemeral=True
-            )
-
-            return
-
-        await member.edit(
-            nick=nickname
-        )
+    if member == interaction.guild.owner:
 
         await interaction.response.send_message(
-            f"✅ Nickname de {member.mention} cambiado a "
-            f"**{nickname}**."
+            "❌ No puedo cambiar el nickname "
+            "del dueño.",
+            ephemeral=True
         )
+
+        return
+
+    if member.top_role >= interaction.guild.me.top_role:
+
+        await interaction.response.send_message(
+            "❌ No puedo cambiar el nickname "
+            "de ese usuario.",
+            ephemeral=True
+        )
+
+        return
+
+    await member.edit(
+        nick=nickname
+    )
+
+    await interaction.response.send_message(
+        f"✅ Nickname de {member.mention} "
+        f"cambiado a **{nickname}**."
+    )
 
 
 # =========================================================
 # PURGE
 # =========================================================
 
-@bot.command(name="purge")
-@commands.has_permissions(manage_messages=True)
+@bot.command(
+    name="purge"
+)
+@commands.has_permissions(
+    manage_messages=True
+)
 async def purge_prefix(
     ctx,
     amount: int
@@ -1185,7 +1257,8 @@ async def purge_prefix(
     if amount < 1 or amount > 100:
 
         await ctx.send(
-            "❌ La cantidad debe estar entre 1 y 100."
+            "❌ La cantidad debe estar "
+            "entre 1 y 100."
         )
 
         return
@@ -1194,68 +1267,74 @@ async def purge_prefix(
         limit=amount + 1
     )
 
+    deleted_count = max(
+        0,
+        len(deleted) - 1
+    )
+
     confirmation = await ctx.send(
         f"🧹 Se eliminaron "
-        f"**{len(deleted) - 1}** mensajes."
+        f"**{deleted_count}** mensajes."
     )
 
     await asyncio.sleep(3)
 
     try:
         await confirmation.delete()
-    except:
+    except discord.HTTPException:
         pass
 
 
-for guild_id in GUILD_IDS:
+@bot.tree.command(
+    name="purge",
+    description="Elimina mensajes"
+)
+@app_commands.describe(
+    amount="Cantidad de mensajes"
+)
+@app_commands.checks.has_permissions(
+    manage_messages=True
+)
+async def purge_slash(
+    interaction: discord.Interaction,
+    amount: int
+):
 
-    guild = discord.Object(id=guild_id)
+    if amount < 1 or amount > 100:
 
-    @bot.tree.command(
-        name="purge",
-        description="Elimina mensajes",
-        guild=guild
-    )
-    @app_commands.describe(
-        amount="Cantidad de mensajes"
-    )
-    @app_commands.checks.has_permissions(
-        manage_messages=True
-    )
-    async def purge_slash(
-        interaction: discord.Interaction,
-        amount: int
-    ):
-
-        if amount < 1 or amount > 100:
-
-            await interaction.response.send_message(
-                "❌ La cantidad debe estar entre 1 y 100.",
-                ephemeral=True
-            )
-
-            return
-
-        await interaction.response.defer(
+        await interaction.response.send_message(
+            "❌ La cantidad debe estar "
+            "entre 1 y 100.",
             ephemeral=True
         )
 
-        deleted = await interaction.channel.purge(
-            limit=amount
-        )
+        return
 
-        await interaction.followup.send(
-            f"🧹 Se eliminaron **{len(deleted)}** mensajes.",
-            ephemeral=True
-        )
+    await interaction.response.defer(
+        ephemeral=True
+    )
+
+    deleted = await interaction.channel.purge(
+        limit=amount
+    )
+
+    await interaction.followup.send(
+        f"🧹 Se eliminaron "
+        f"**{len(deleted)}** mensajes.",
+        ephemeral=True
+    )
 
 
 # =========================================================
 # PREFIX
 # =========================================================
 
-@bot.command(name="prefix")
-@commands.has_permissions(manage_guild=True)
+@bot.command(
+    name="prefix"
+)
+@commands.has_permissions(
+    manage_guild=True
+)
 async def prefix_prefix(
     ctx,
     new_prefix: str
@@ -1272,7 +1351,8 @@ async def prefix_prefix(
     if len(new_prefix) > 5:
 
         await ctx.send(
-            "❌ El prefijo puede tener máximo 5 caracteres."
+            "❌ El prefijo puede tener "
+            "máximo 5 caracteres."
         )
 
         return
@@ -1283,60 +1363,58 @@ async def prefix_prefix(
     )
 
     await ctx.send(
-        f"✅ El nuevo prefijo es `{new_prefix}`"
+        f"✅ El nuevo prefijo es "
+        f"`{new_prefix}`"
     )
 
 
-for guild_id in GUILD_IDS:
+@bot.tree.command(
+    name="prefix",
+    description="Cambia el prefijo del bot"
+)
+@app_commands.describe(
+    new_prefix="Nuevo prefijo"
+)
+@app_commands.checks.has_permissions(
+    manage_guild=True
+)
+async def prefix_slash(
+    interaction: discord.Interaction,
+    new_prefix: str
+):
 
-    guild = discord.Object(id=guild_id)
-
-    @bot.tree.command(
-        name="prefix",
-        description="Cambia el prefijo del bot",
-        guild=guild
-    )
-    @app_commands.describe(
-        new_prefix="Nuevo prefijo"
-    )
-    @app_commands.checks.has_permissions(
-        manage_guild=True
-    )
-    async def prefix_slash(
-        interaction: discord.Interaction,
-        new_prefix: str
-    ):
-
-        if not new_prefix.strip():
-
-            await interaction.response.send_message(
-                "❌ El prefijo no puede estar vacío.",
-                ephemeral=True
-            )
-
-            return
-
-        if len(new_prefix) > 5:
-
-            await interaction.response.send_message(
-                "❌ El prefijo puede tener máximo 5 caracteres.",
-                ephemeral=True
-            )
-
-            return
-
-        set_prefix(
-            interaction.guild.id,
-            new_prefix
-        )
+    if not new_prefix.strip():
 
         await interaction.response.send_message(
-            f"✅ El nuevo prefijo es `{new_prefix}`"
+            "❌ El prefijo no puede estar vacío.",
+            ephemeral=True
         )
+
+        return
+
+    if len(new_prefix) > 5:
+
+        await interaction.response.send_message(
+            "❌ El prefijo puede tener "
+            "máximo 5 caracteres.",
+            ephemeral=True
+        )
+
+        return
+
+    set_prefix(
+        interaction.guild.id,
+        new_prefix
+    )
+
+    await interaction.response.send_message(
+        f"✅ El nuevo prefijo es "
+        f"`{new_prefix}`"
+    )
 
 
 # =========================================================
-# ERRORES DE COMANDOS
+# ERRORES DE COMANDOS PREFIX
 # =========================================================
 
 @bot.event
@@ -1347,11 +1425,18 @@ async def on_command_error(
 
     if isinstance(
         error,
+        commands.CommandNotFound
+    ):
+        return
+
+    if isinstance(
+        error,
         commands.MissingPermissions
     ):
 
         await ctx.send(
-            "❌ No tienes permisos para usar este comando."
+            "❌ No tienes permisos "
+            "para usar este comando."
         )
 
         return
@@ -1362,7 +1447,8 @@ async def on_command_error(
     ):
 
         await ctx.send(
-            "❌ Faltan argumentos en el comando."
+            "❌ Faltan argumentos "
+            "en el comando."
         )
 
         return
@@ -1373,15 +1459,9 @@ async def on_command_error(
     ):
 
         await ctx.send(
-            "❌ Uno de los argumentos no es válido."
+            "❌ Uno de los argumentos "
+            "no es válido."
         )
-
-        return
-
-    if isinstance(
-        error,
-        commands.CommandNotFound
-    ):
 
         return
 
@@ -1405,14 +1485,11 @@ async def on_app_command_error(
         app_commands.errors.MissingPermissions
     ):
 
-        message = (
-            "❌ No tienes permisos para usar este comando."
-        )
-
         if not interaction.response.is_done():
 
             await interaction.response.send_message(
-                message,
+                "❌ No tienes permisos "
+                "para usar este comando.",
                 ephemeral=True
             )
 
@@ -1425,7 +1502,8 @@ async def on_app_command_error(
     if not interaction.response.is_done():
 
         await interaction.response.send_message(
-            "❌ Ha ocurrido un error al ejecutar el comando.",
+            "❌ Ha ocurrido un error "
+            "al ejecutar el comando.",
             ephemeral=True
         )
 
@@ -1437,7 +1515,8 @@ async def on_app_command_error(
 if not TOKEN:
 
     raise RuntimeError(
-        "❌ No se encontró MEMBERCOUNT_TOKEN."
+        "❌ No se encontró "
+        "MEMBERCOUNT_TOKEN."
     )
 
 
