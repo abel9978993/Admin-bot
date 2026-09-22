@@ -236,7 +236,7 @@ def count_total_messages(
 
 
 # =========================================================
-# AJUSTES DE ESTADÍSTICAS
+# AJUSTES
 # =========================================================
 
 def get_adjustment(
@@ -374,10 +374,6 @@ def prepare_aset(
     )
 
 
-# =========================================================
-# ESTADÍSTICAS AJUSTADAS
-# =========================================================
-
 def calculate_adjusted_value(
     guild_id,
     user_id,
@@ -414,12 +410,10 @@ def calculate_adjusted_value(
     if messages_after_adjustment < 0:
         messages_after_adjustment = 0
 
-    result = (
-        adjustment["amount"] +
-        messages_after_adjustment
+    return max(
+        0,
+        adjustment["amount"] + messages_after_adjustment
     )
-
-    return max(0, result)
 
 
 def calculate_adjusted_total(
@@ -449,12 +443,10 @@ def calculate_adjusted_total(
     if messages_after_adjustment < 0:
         messages_after_adjustment = 0
 
-    result = (
-        adjustment["amount"] +
-        messages_after_adjustment
+    return max(
+        0,
+        adjustment["amount"] + messages_after_adjustment
     )
-
-    return max(0, result)
 
 
 # =========================================================
@@ -488,7 +480,6 @@ bot = MyBot(
 )
 
 
-# Evita limpiar los comandos antiguos más de una vez
 commands_cleaned = False
 
 
@@ -506,10 +497,6 @@ async def on_ready():
     print(f"🆔 ID: {bot.user.id}")
     print(f"🌐 Servidores: {len(bot.guilds)}")
     print("=" * 55)
-
-    # =====================================================
-    # LIMPIAR COMANDOS DE SERVIDOR ANTIGUOS
-    # =====================================================
 
     if not commands_cleaned:
 
@@ -553,13 +540,11 @@ async def on_ready():
             except Exception as e:
 
                 print(
-                    f"⚠️ No se pudieron limpiar "
-                    f"los comandos de {guild.name}: {e}"
+                    f"⚠️ Error limpiando {guild.name}: {e}"
                 )
 
         commands_cleaned = True
 
-        # Volver a sincronizar los globales
         try:
 
             synced = await bot.tree.sync()
@@ -575,17 +560,14 @@ async def on_ready():
             )
 
     print("=" * 55)
-    print("🧠 Sistema de estadísticas cargado")
-    print("📊 /am y ?am cargados")
-    print("➕ /aset y ?aset cargados")
-    print("👤 AM: todos los usuarios")
-    print("👑 ASET: solo administradores")
-    print("🌎 Slash commands: GLOBAL")
+    print("📊 Sistema de estadísticas cargado")
+    print("⬆️ Promote cargado")
+    print("⬇️ Demote cargado")
     print("=" * 55)
 
 
 # =========================================================
-# REGISTRAR MENSAJES
+# MENSAJES
 # =========================================================
 
 @bot.event
@@ -628,9 +610,6 @@ async def on_message(message):
 @bot.command(name="membercount")
 async def membercount_prefix(ctx):
 
-    if ctx.guild is None:
-        return
-
     await ctx.send(
         f"👥 **Miembros del servidor:** "
         f"{ctx.guild.member_count}"
@@ -639,14 +618,11 @@ async def membercount_prefix(ctx):
 
 @bot.tree.command(
     name="membercount",
-    description="Muestra el número de miembros del servidor"
+    description="Muestra el número de miembros"
 )
 async def membercount_slash(
     interaction: discord.Interaction
 ):
-
-    if interaction.guild is None:
-        return
 
     await interaction.response.send_message(
         f"👥 **Miembros del servidor:** "
@@ -655,8 +631,71 @@ async def membercount_slash(
 
 
 # =========================================================
-# AM - PREFIX
+# AM
 # =========================================================
+
+async def create_am_embed(
+    guild,
+    target
+):
+
+    (
+        today_start,
+        week_start,
+        month_start,
+        year_start
+    ) = get_period_starts()
+
+    today = calculate_adjusted_value(
+        guild.id,
+        target.id,
+        "hoy",
+        today_start
+    )
+
+    week = calculate_adjusted_value(
+        guild.id,
+        target.id,
+        "semana",
+        week_start
+    )
+
+    month = calculate_adjusted_value(
+        guild.id,
+        target.id,
+        "mes",
+        month_start
+    )
+
+    year = count_messages(
+        guild.id,
+        target.id,
+        year_start
+    )
+
+    total = calculate_adjusted_total(
+        guild.id,
+        target.id
+    )
+
+    embed = discord.Embed(
+        title=f"📊 Estadísticas de {target.display_name}",
+        description=(
+            f"**Hoy:** {today}\n"
+            f"**Esta semana:** {week}\n"
+            f"**Este mes:** {month}\n"
+            f"**Este año:** {year}\n"
+            f"**Total:** {total}"
+        ),
+        color=discord.Color.blurple()
+    )
+
+    embed.set_thumbnail(
+        url=target.display_avatar.url
+    )
+
+    return embed
+
 
 @bot.command(name="am")
 async def am_prefix(
@@ -664,64 +703,11 @@ async def am_prefix(
     member: discord.Member = None
 ):
 
-    if ctx.guild is None:
-        return
-
     target = member or ctx.author
 
-    (
-        today_start,
-        week_start,
-        month_start,
-        year_start
-    ) = get_period_starts()
-
-    today = calculate_adjusted_value(
-        ctx.guild.id,
-        target.id,
-        "hoy",
-        today_start
-    )
-
-    week = calculate_adjusted_value(
-        ctx.guild.id,
-        target.id,
-        "semana",
-        week_start
-    )
-
-    month = calculate_adjusted_value(
-        ctx.guild.id,
-        target.id,
-        "mes",
-        month_start
-    )
-
-    year = count_messages(
-        ctx.guild.id,
-        target.id,
-        year_start
-    )
-
-    total = calculate_adjusted_total(
-        ctx.guild.id,
-        target.id
-    )
-
-    embed = discord.Embed(
-        title=f"📊 Estadísticas de {target.display_name}",
-        description=(
-            f"**Hoy:** {today}\n"
-            f"**Esta semana:** {week}\n"
-            f"**Este mes:** {month}\n"
-            f"**Este año:** {year}\n"
-            f"**Total:** {total}"
-        ),
-        color=discord.Color.blurple()
-    )
-
-    embed.set_thumbnail(
-        url=target.display_avatar.url
+    embed = await create_am_embed(
+        ctx.guild,
+        target
     )
 
     await ctx.send(
@@ -729,80 +715,23 @@ async def am_prefix(
     )
 
 
-# =========================================================
-# AM - SLASH GLOBAL
-# =========================================================
-
 @bot.tree.command(
     name="am",
     description="Muestra las estadísticas de mensajes"
 )
 @app_commands.describe(
-    member="Usuario cuyas estadísticas quieres ver"
+    member="Usuario"
 )
 async def am_slash(
     interaction: discord.Interaction,
     member: discord.Member = None
 ):
 
-    if interaction.guild is None:
-        return
-
     target = member or interaction.user
 
-    (
-        today_start,
-        week_start,
-        month_start,
-        year_start
-    ) = get_period_starts()
-
-    today = calculate_adjusted_value(
-        interaction.guild.id,
-        target.id,
-        "hoy",
-        today_start
-    )
-
-    week = calculate_adjusted_value(
-        interaction.guild.id,
-        target.id,
-        "semana",
-        week_start
-    )
-
-    month = calculate_adjusted_value(
-        interaction.guild.id,
-        target.id,
-        "mes",
-        month_start
-    )
-
-    year = count_messages(
-        interaction.guild.id,
-        target.id,
-        year_start
-    )
-
-    total = calculate_adjusted_total(
-        interaction.guild.id,
-        target.id
-    )
-
-    embed = discord.Embed(
-        title=f"📊 Estadísticas de {target.display_name}",
-        description=(
-            f"**Hoy:** {today}\n"
-            f"**Esta semana:** {week}\n"
-            f"**Este mes:** {month}\n"
-            f"**Este año:** {year}\n"
-            f"**Total:** {total}"
-        ),
-        color=discord.Color.blurple()
-    )
-
-    embed.set_thumbnail(
-        url=target.display_avatar.url
+    embed = await create_am_embed(
+        interaction.guild,
+        target
     )
 
     await interaction.response.send_message(
@@ -811,7 +740,7 @@ async def am_slash(
 
 
 # =========================================================
-# ASET - PREFIX
+# ASET
 # =========================================================
 
 @bot.command(name="aset")
@@ -826,8 +755,8 @@ async def aset_prefix(
 
     equivalencias = {
         "hoy": "hoy",
-        "día": "hoy",
         "dia": "hoy",
+        "día": "hoy",
         "today": "hoy",
         "semana": "semana",
         "week": "semana",
@@ -839,12 +768,10 @@ async def aset_prefix(
     if period not in equivalencias:
 
         await ctx.send(
-            "❌ Usa: `hoy`, `semana`, `mes` o `total`."
+            "❌ Usa `hoy`, `semana`, `mes` o `total`."
         )
 
         return
-
-    period = equivalencias[period]
 
     if amount < 0:
 
@@ -854,6 +781,8 @@ async def aset_prefix(
 
         return
 
+    period = equivalencias[period]
+
     prepare_aset(
         ctx.guild.id,
         ctx.author.id,
@@ -862,22 +791,17 @@ async def aset_prefix(
     )
 
     await ctx.send(
-        f"✅ **{period}** establecido en **{amount}**.\n"
-        f"Los nuevos mensajes se sumarán a partir de ahora."
+        f"✅ **{period}** establecido en **{amount}**."
     )
 
 
-# =========================================================
-# ASET - SLASH GLOBAL
-# =========================================================
-
 @bot.tree.command(
     name="aset",
-    description="Establece una cantidad inicial de mensajes"
+    description="Establece una cantidad de mensajes"
 )
 @app_commands.describe(
-    period="Periodo que quieres modificar",
-    amount="Cantidad inicial"
+    period="Periodo",
+    amount="Cantidad"
 )
 @app_commands.choices(
     period=[
@@ -886,11 +810,11 @@ async def aset_prefix(
             value="hoy"
         ),
         app_commands.Choice(
-            name="Esta semana",
+            name="Semana",
             value="semana"
         ),
         app_commands.Choice(
-            name="Este mes",
+            name="Mes",
             value="mes"
         ),
         app_commands.Choice(
@@ -925,8 +849,7 @@ async def aset_slash(
     )
 
     await interaction.response.send_message(
-        f"✅ **{period.name}** establecido en **{amount}**.\n"
-        f"Los nuevos mensajes se sumarán a partir de ahora."
+        f"✅ **{period.name}** establecido en **{amount}**."
     )
 
 
@@ -943,9 +866,7 @@ async def ban_prefix(
     reason: str = "Sin razón especificada"
 ):
 
-    await member.ban(
-        reason=reason
-    )
+    await member.ban(reason=reason)
 
     await ctx.send(
         f"🔨 {member.mention} ha sido baneado."
@@ -957,8 +878,8 @@ async def ban_prefix(
     description="Banea a un miembro"
 )
 @app_commands.describe(
-    member="Miembro que quieres banear",
-    reason="Razón del baneo"
+    member="Miembro",
+    reason="Razón"
 )
 @app_commands.checks.has_permissions(
     ban_members=True
@@ -969,9 +890,7 @@ async def ban_slash(
     reason: str = "Sin razón especificada"
 ):
 
-    await member.ban(
-        reason=reason
-    )
+    await member.ban(reason=reason)
 
     await interaction.response.send_message(
         f"🔨 {member.mention} ha sido baneado."
@@ -991,9 +910,7 @@ async def kick_prefix(
     reason: str = "Sin razón especificada"
 ):
 
-    await member.kick(
-        reason=reason
-    )
+    await member.kick(reason=reason)
 
     await ctx.send(
         f"👢 {member.mention} ha sido expulsado."
@@ -1005,8 +922,8 @@ async def kick_prefix(
     description="Expulsa a un miembro"
 )
 @app_commands.describe(
-    member="Miembro que quieres expulsar",
-    reason="Razón de la expulsión"
+    member="Miembro",
+    reason="Razón"
 )
 @app_commands.checks.has_permissions(
     kick_members=True
@@ -1017,9 +934,7 @@ async def kick_slash(
     reason: str = "Sin razón especificada"
 ):
 
-    await member.kick(
-        reason=reason
-    )
+    await member.kick(reason=reason)
 
     await interaction.response.send_message(
         f"👢 {member.mention} ha sido expulsado."
@@ -1054,13 +969,13 @@ async def unban_prefix(
     except discord.NotFound:
 
         await ctx.send(
-            "❌ No encontré ese usuario entre los baneados."
+            "❌ Ese usuario no está baneado."
         )
 
 
 @bot.tree.command(
     name="unban",
-    description="Desbanea un usuario mediante su ID"
+    description="Desbanea un usuario"
 )
 @app_commands.describe(
     user_id="ID del usuario"
@@ -1090,7 +1005,7 @@ async def unban_slash(
     except (discord.NotFound, ValueError):
 
         await interaction.response.send_message(
-            "❌ No encontré ese usuario entre los baneados.",
+            "❌ Ese usuario no está baneado.",
             ephemeral=True
         )
 
@@ -1113,13 +1028,12 @@ async def setnick_prefix(
     nickname: str = None
 ):
 
-    # ?setnick nickname
     if member is None:
 
         if nickname is None:
 
             await ctx.send(
-                "❌ Especifica el nuevo nickname."
+                "❌ Escribe el nuevo nickname."
             )
 
             return
@@ -1137,7 +1051,7 @@ async def setnick_prefix(
     if nickname is None:
 
         await ctx.send(
-            "❌ Especifica el nuevo nickname."
+            "❌ Escribe el nuevo nickname."
         )
 
         return
@@ -1153,7 +1067,7 @@ async def setnick_prefix(
     if member.top_role >= ctx.guild.me.top_role:
 
         await ctx.send(
-            "❌ No puedo cambiar el nickname de ese usuario."
+            "❌ El rol de ese usuario está demasiado alto."
         )
 
         return
@@ -1163,8 +1077,7 @@ async def setnick_prefix(
     )
 
     await ctx.send(
-        f"✅ Nickname de {member.mention} cambiado a "
-        f"**{nickname}**."
+        f"✅ Nickname de {member.mention} cambiado."
     )
 
 
@@ -1197,7 +1110,7 @@ async def setnick_slash(
     if member.top_role >= interaction.guild.me.top_role:
 
         await interaction.response.send_message(
-            "❌ No puedo cambiar el nickname de ese usuario.",
+            "❌ El rol de ese usuario está demasiado alto.",
             ephemeral=True
         )
 
@@ -1208,8 +1121,7 @@ async def setnick_slash(
     )
 
     await interaction.response.send_message(
-        f"✅ Nickname de {member.mention} cambiado a "
-        f"**{nickname}**."
+        f"✅ Nickname de {member.mention} cambiado."
     )
 
 
@@ -1260,7 +1172,7 @@ async def purge_prefix(
     description="Elimina mensajes"
 )
 @app_commands.describe(
-    amount="Cantidad de mensajes"
+    amount="Cantidad"
 )
 @app_commands.checks.has_permissions(
     manage_messages=True
@@ -1317,7 +1229,7 @@ async def prefix_prefix(
     if len(new_prefix) > 5:
 
         await ctx.send(
-            "❌ El prefijo puede tener máximo 5 caracteres."
+            "❌ Máximo 5 caracteres."
         )
 
         return
@@ -1328,13 +1240,13 @@ async def prefix_prefix(
     )
 
     await ctx.send(
-        f"✅ El nuevo prefijo es `{new_prefix}`"
+        f"✅ Nuevo prefijo: `{new_prefix}`"
     )
 
 
 @bot.tree.command(
     name="prefix",
-    description="Cambia el prefijo del bot"
+    description="Cambia el prefijo"
 )
 @app_commands.describe(
     new_prefix="Nuevo prefijo"
@@ -1359,7 +1271,7 @@ async def prefix_slash(
     if len(new_prefix) > 5:
 
         await interaction.response.send_message(
-            "❌ El prefijo puede tener máximo 5 caracteres.",
+            "❌ Máximo 5 caracteres.",
             ephemeral=True
         )
 
@@ -1371,7 +1283,606 @@ async def prefix_slash(
     )
 
     await interaction.response.send_message(
-        f"✅ El nuevo prefijo es `{new_prefix}`"
+        f"✅ Nuevo prefijo: `{new_prefix}`"
+    )
+
+
+# =========================================================
+# PROMOTE / DEMOTE
+# =========================================================
+
+def get_manageable_roles(
+    guild,
+    member,
+    promote=True
+):
+
+    bot_member = guild.me
+
+    if bot_member is None:
+        return []
+
+    bot_top_role = bot_member.top_role
+
+    roles = []
+
+    for role in guild.roles:
+
+        # @everyone
+        if role.is_default():
+            continue
+
+        # Rol del bot o superior
+        if role >= bot_top_role:
+            continue
+
+        # Rol administrado por integración/bot
+        if role.managed:
+            continue
+
+        if promote:
+
+            # Solo roles superiores al rol principal
+            # actual del usuario
+            if role > member.top_role:
+                roles.append(role)
+
+        else:
+
+            # Solo roles inferiores al rol principal actual
+            if role < member.top_role:
+                roles.append(role)
+
+    # De mayor a menor
+    roles.sort(
+        key=lambda r: r.position,
+        reverse=True
+    )
+
+    return roles
+
+
+class RoleSelect(discord.ui.Select):
+
+    def __init__(
+        self,
+        target_member,
+        roles,
+        promote
+    ):
+
+        self.target_member = target_member
+        self.promote = promote
+
+        options = []
+
+        for role in roles[:25]:
+
+            options.append(
+                discord.SelectOption(
+                    label=role.name[:100],
+                    value=str(role.id),
+                    description=(
+                        f"Nivel {role.position}"
+                    )[:100]
+                )
+            )
+
+        placeholder = (
+            "Selecciona el nuevo rol"
+            if promote
+            else
+            "Selecciona el rol para bajar"
+        )
+
+        super().__init__(
+            placeholder=placeholder,
+            min_values=1,
+            max_values=1,
+            options=options
+        )
+
+    async def callback(
+        self,
+        interaction: discord.Interaction
+    ):
+
+        guild = interaction.guild
+
+        selected_role_id = int(
+            self.values[0]
+        )
+
+        role = guild.get_role(
+            selected_role_id
+        )
+
+        if role is None:
+
+            await interaction.response.send_message(
+                "❌ Ese rol ya no existe.",
+                ephemeral=True
+            )
+
+            return
+
+        bot_member = guild.me
+
+        if bot_member is None:
+
+            await interaction.response.send_message(
+                "❌ No puedo comprobar mi rol.",
+                ephemeral=True
+            )
+
+            return
+
+        # Seguridad
+        if role >= bot_member.top_role:
+
+            await interaction.response.send_message(
+                "❌ No puedo asignar ese rol porque "
+                "está al mismo nivel o por encima de mi rol.",
+                ephemeral=True
+            )
+
+            return
+
+        # Evitar modificar al dueño
+        if self.target_member == guild.owner:
+
+            await interaction.response.send_message(
+                "❌ No puedes cambiar los roles del dueño.",
+                ephemeral=True
+            )
+
+            return
+
+        # Comprobar jerarquía del usuario objetivo
+        if self.target_member.top_role >= bot_member.top_role:
+
+            await interaction.response.send_message(
+                "❌ No puedo modificar a este usuario "
+                "porque su rol es igual o superior al mío.",
+                ephemeral=True
+            )
+
+            return
+
+        try:
+
+            old_role = self.target_member.top_role
+
+            # =================================================
+            # PROMOTE
+            # =================================================
+
+            if self.promote:
+
+                # Quitamos el rol anterior si no es @everyone
+                if not old_role.is_default():
+
+                    try:
+
+                        await self.target_member.remove_roles(
+                            old_role,
+                            reason=f"Promote por {interaction.user}"
+                        )
+
+                    except discord.Forbidden:
+
+                        pass
+
+                await self.target_member.add_roles(
+                    role,
+                    reason=f"Promote por {interaction.user}"
+                )
+
+                embed = discord.Embed(
+                    title="⬆️ Usuario promovido",
+                    description=(
+                        f"{self.target_member.mention} "
+                        f"ha sido promovido.\n\n"
+                        f"**Rol anterior:** {old_role.mention}\n"
+                        f"**Nuevo rol:** {role.mention}"
+                    ),
+                    color=discord.Color.green()
+                )
+
+            # =================================================
+            # DEMOTE
+            # =================================================
+
+            else:
+
+                if role == old_role:
+
+                    await interaction.response.send_message(
+                        "❌ Ese ya es su rol actual.",
+                        ephemeral=True
+                    )
+
+                    return
+
+                if not role.is_default():
+
+                    try:
+
+                        await self.target_member.remove_roles(
+                            old_role,
+                            reason=f"Demote por {interaction.user}"
+                        )
+
+                    except discord.Forbidden:
+
+                        pass
+
+                if not role.is_default():
+
+                    await self.target_member.add_roles(
+                        role,
+                        reason=f"Demote por {interaction.user}"
+                    )
+
+                embed = discord.Embed(
+                    title="⬇️ Usuario degradado",
+                    description=(
+                        f"{self.target_member.mention} "
+                        f"ha sido degradado.\n\n"
+                        f"**Rol anterior:** {old_role.mention}\n"
+                        f"**Nuevo rol:** {role.mention}"
+                    ),
+                    color=discord.Color.orange()
+                )
+
+            await interaction.response.edit_message(
+                embed=embed,
+                view=None
+            )
+
+        except discord.Forbidden:
+
+            await interaction.response.send_message(
+                "❌ Discord no me permite modificar "
+                "los roles de este usuario.",
+                ephemeral=True
+            )
+
+        except Exception as e:
+
+            print(
+                f"❌ Error en RoleSelect: {e}"
+            )
+
+            await interaction.response.send_message(
+                "❌ Ocurrió un error al cambiar el rol.",
+                ephemeral=True
+            )
+
+
+class RolePanel(discord.ui.View):
+
+    def __init__(
+        self,
+        target_member,
+        roles,
+        promote
+    ):
+
+        super().__init__(
+            timeout=60
+        )
+
+        self.add_item(
+            RoleSelect(
+                target_member,
+                roles,
+                promote
+            )
+        )
+
+
+def create_role_panel_embed(
+    target,
+    roles,
+    promote
+):
+
+    if promote:
+
+        title = "⬆️ Promote"
+        description = (
+            f"Selecciona el nuevo rol para "
+            f"**{target.display_name}**.\n\n"
+            "Solo aparecen los roles que puedo asignar."
+        )
+
+        color = discord.Color.green()
+
+    else:
+
+        title = "⬇️ Demote"
+        description = (
+            f"Selecciona el nuevo rol para "
+            f"**{target.display_name}**.\n\n"
+            "Solo aparecen los roles inferiores disponibles."
+        )
+
+        color = discord.Color.orange()
+
+    embed = discord.Embed(
+        title=title,
+        description=description,
+        color=color
+    )
+
+    embed.set_thumbnail(
+        url=target.display_avatar.url
+    )
+
+    return embed
+
+
+# =========================================================
+# PROMOTE PREFIX
+# =========================================================
+
+@bot.command(name="promote")
+@commands.has_permissions(
+    manage_roles=True
+)
+async def promote_prefix(
+    ctx,
+    member: discord.Member
+):
+
+    if member == ctx.guild.owner:
+
+        await ctx.send(
+            "❌ No puedes modificar los roles del dueño."
+        )
+
+        return
+
+    if member == ctx.author:
+
+        await ctx.send(
+            "❌ No puedes usar promote sobre ti mismo."
+        )
+
+        return
+
+    roles = get_manageable_roles(
+        ctx.guild,
+        member,
+        promote=True
+    )
+
+    if not roles:
+
+        await ctx.send(
+            "❌ No hay ningún rol superior disponible "
+            "que pueda asignarle."
+        )
+
+        return
+
+    embed = create_role_panel_embed(
+        member,
+        roles,
+        True
+    )
+
+    view = RolePanel(
+        member,
+        roles,
+        True
+    )
+
+    await ctx.send(
+        embed=embed,
+        view=view
+    )
+
+
+# =========================================================
+# PROMOTE SLASH
+# =========================================================
+
+@bot.tree.command(
+    name="promote",
+    description="Promueve a un usuario a otro rol"
+)
+@app_commands.describe(
+    member="Usuario que quieres promover"
+)
+@app_commands.checks.has_permissions(
+    manage_roles=True
+)
+async def promote_slash(
+    interaction: discord.Interaction,
+    member: discord.Member
+):
+
+    if member == interaction.guild.owner:
+
+        await interaction.response.send_message(
+            "❌ No puedes modificar los roles del dueño.",
+            ephemeral=True
+        )
+
+        return
+
+    if member == interaction.user:
+
+        await interaction.response.send_message(
+            "❌ No puedes usar promote sobre ti mismo.",
+            ephemeral=True
+        )
+
+        return
+
+    roles = get_manageable_roles(
+        interaction.guild,
+        member,
+        promote=True
+    )
+
+    if not roles:
+
+        await interaction.response.send_message(
+            "❌ No hay ningún rol superior disponible.",
+            ephemeral=True
+        )
+
+        return
+
+    embed = create_role_panel_embed(
+        member,
+        roles,
+        True
+    )
+
+    view = RolePanel(
+        member,
+        roles,
+        True
+    )
+
+    await interaction.response.send_message(
+        embed=embed,
+        view=view
+    )
+
+
+# =========================================================
+# DEMOTE PREFIX
+# =========================================================
+
+@bot.command(name="demote")
+@commands.has_permissions(
+    manage_roles=True
+)
+async def demote_prefix(
+    ctx,
+    member: discord.Member
+):
+
+    if member == ctx.guild.owner:
+
+        await ctx.send(
+            "❌ No puedes modificar los roles del dueño."
+        )
+
+        return
+
+    if member == ctx.author:
+
+        await ctx.send(
+            "❌ No puedes usar demote sobre ti mismo."
+        )
+
+        return
+
+    roles = get_manageable_roles(
+        ctx.guild,
+        member,
+        promote=False
+    )
+
+    if not roles:
+
+        await ctx.send(
+            "❌ No hay ningún rol inferior disponible."
+        )
+
+        return
+
+    embed = create_role_panel_embed(
+        member,
+        roles,
+        False
+    )
+
+    view = RolePanel(
+        member,
+        roles,
+        False
+    )
+
+    await ctx.send(
+        embed=embed,
+        view=view
+    )
+
+
+# =========================================================
+# DEMOTE SLASH
+# =========================================================
+
+@bot.tree.command(
+    name="demote",
+    description="Degrada a un usuario a otro rol"
+)
+@app_commands.describe(
+    member="Usuario que quieres degradar"
+)
+@app_commands.checks.has_permissions(
+    manage_roles=True
+)
+async def demote_slash(
+    interaction: discord.Interaction,
+    member: discord.Member
+):
+
+    if member == interaction.guild.owner:
+
+        await interaction.response.send_message(
+            "❌ No puedes modificar los roles del dueño.",
+            ephemeral=True
+        )
+
+        return
+
+    if member == interaction.user:
+
+        await interaction.response.send_message(
+            "❌ No puedes usar demote sobre ti mismo.",
+            ephemeral=True
+        )
+
+        return
+
+    roles = get_manageable_roles(
+        interaction.guild,
+        member,
+        promote=False
+    )
+
+    if not roles:
+
+        await interaction.response.send_message(
+            "❌ No hay ningún rol inferior disponible.",
+            ephemeral=True
+        )
+
+        return
+
+    embed = create_role_panel_embed(
+        member,
+        roles,
+        False
+    )
+
+    view = RolePanel(
+        member,
+        roles,
+        False
+    )
+
+    await interaction.response.send_message(
+        embed=embed,
+        view=view
     )
 
 
@@ -1408,7 +1919,8 @@ async def on_command_error(
     ):
 
         await ctx.send(
-            "❌ Faltan argumentos en el comando."
+            "❌ Falta un argumento. Ejemplo: "
+            f"`{get_prefix(ctx.guild.id)}promote @usuario`"
         )
 
         return
@@ -1419,7 +1931,7 @@ async def on_command_error(
     ):
 
         await ctx.send(
-            "❌ Uno de los argumentos no es válido."
+            "❌ El usuario indicado no es válido."
         )
 
         return
@@ -1466,7 +1978,7 @@ async def on_app_command_error(
 
 
 # =========================================================
-# INICIAR BOT
+# INICIAR
 # =========================================================
 
 if not TOKEN:
