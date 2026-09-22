@@ -14,13 +14,6 @@ from discord import app_commands
 
 TOKEN = os.getenv("MEMBERCOUNT_TOKEN")
 
-# Servidores conocidos
-GUILD_IDS = [
-    1549084302489165967,
-    1550942985984942201,
-    1525302300615118980
-]
-
 
 # =========================================================
 # INTENTS
@@ -33,7 +26,7 @@ intents.message_content = True
 
 
 # =========================================================
-# BASE DE DATOS - PREFIJOS
+# BASE DE DATOS DE PREFIJOS
 # =========================================================
 
 PREFIX_DB = "prefixes.db"
@@ -80,7 +73,7 @@ def get_bot_prefix(bot, message):
 
 
 # =========================================================
-# BASE DE DATOS - MENSAJES
+# BASE DE DATOS DE MENSAJES
 # =========================================================
 
 MESSAGES_DB = "messages.db"
@@ -99,7 +92,7 @@ with sqlite3.connect(MESSAGES_DB) as conn:
 
 
 # =========================================================
-# BASE DE DATOS - AJUSTES
+# BASE DE DATOS DE AJUSTES
 # =========================================================
 
 with sqlite3.connect(MESSAGES_DB) as conn:
@@ -128,14 +121,12 @@ def migrate_adjustment_table():
         column_names = [column[1] for column in columns]
 
         if "reference_real" not in column_names:
-
             conn.execute("""
                 ALTER TABLE message_adjustments
                 ADD COLUMN reference_real INTEGER NOT NULL DEFAULT 0
             """)
 
         if "period_start" not in column_names:
-
             conn.execute("""
                 ALTER TABLE message_adjustments
                 ADD COLUMN period_start TEXT
@@ -184,7 +175,7 @@ def get_period_starts():
 
 
 # =========================================================
-# CONTADORES
+# CONTAR MENSAJES
 # =========================================================
 
 def count_messages(
@@ -245,7 +236,7 @@ def count_total_messages(
 
 
 # =========================================================
-# AJUSTES
+# AJUSTES DE ESTADÍSTICAS
 # =========================================================
 
 def get_adjustment(
@@ -371,9 +362,7 @@ def prepare_aset(
 
     else:
 
-        raise ValueError(
-            "Periodo inválido"
-        )
+        raise ValueError("Periodo inválido")
 
     set_adjustment(
         guild_id,
@@ -412,7 +401,6 @@ def calculate_adjusted_value(
         return real_count
 
     saved_period_start = adjustment["period_start"]
-
     current_period_start = start_time.isoformat()
 
     if saved_period_start != current_period_start:
@@ -426,11 +414,12 @@ def calculate_adjusted_value(
     if messages_after_adjustment < 0:
         messages_after_adjustment = 0
 
-    return max(
-        0,
+    result = (
         adjustment["amount"] +
         messages_after_adjustment
     )
+
+    return max(0, result)
 
 
 def calculate_adjusted_total(
@@ -460,11 +449,12 @@ def calculate_adjusted_total(
     if messages_after_adjustment < 0:
         messages_after_adjustment = 0
 
-    return max(
-        0,
+    result = (
         adjustment["amount"] +
         messages_after_adjustment
     )
+
+    return max(0, result)
 
 
 # =========================================================
@@ -475,23 +465,20 @@ class MyBot(commands.Bot):
 
     async def setup_hook(self):
 
-        print(
-            "🔄 Sincronizando slash commands globalmente..."
-        )
+        print("🔄 Sincronizando comandos globales...")
 
         try:
 
             synced = await self.tree.sync()
 
             print(
-                f"✅ {len(synced)} slash commands "
-                f"sincronizados globalmente."
+                f"✅ {len(synced)} comandos globales sincronizados."
             )
 
         except Exception as e:
 
             print(
-                f"❌ Error sincronizando slash commands: {e}"
+                f"❌ Error sincronizando comandos: {e}"
             )
 
 
@@ -501,6 +488,10 @@ bot = MyBot(
 )
 
 
+# Evita limpiar los comandos antiguos más de una vez
+commands_cleaned = False
+
+
 # =========================================================
 # READY
 # =========================================================
@@ -508,69 +499,93 @@ bot = MyBot(
 @bot.event
 async def on_ready():
 
-    print("=" * 55)
-
-    print(
-        f"🤖 Bot conectado como {bot.user}"
-    )
-
-    print(
-        f"🆔 ID: {bot.user.id}"
-    )
+    global commands_cleaned
 
     print("=" * 55)
+    print(f"🤖 Bot conectado como {bot.user}")
+    print(f"🆔 ID: {bot.user.id}")
+    print(f"🌐 Servidores: {len(bot.guilds)}")
+    print("=" * 55)
 
-    print(
-        "🧠 Sistema de estadísticas cargado"
-    )
+    # =====================================================
+    # LIMPIAR COMANDOS DE SERVIDOR ANTIGUOS
+    # =====================================================
 
-    print(
-        "📊 /am y ?am cargados"
-    )
+    if not commands_cleaned:
 
-    print(
-        "➕ /aset y ?aset cargados"
-    )
+        print("🧹 Buscando comandos antiguos de servidor...")
 
-    print(
-        "👤 AM: todos los usuarios"
-    )
+        for guild in bot.guilds:
 
-    print(
-        "👑 ASET: solo administradores"
-    )
+            try:
 
-    print(
-        "🌎 Slash commands: GLOBAL"
-    )
+                old_commands = await bot.tree.fetch_commands(
+                    guild=guild
+                )
 
-    print(
-        "🏠 Servidores configurados:"
-    )
+                if old_commands:
 
-    for guild_id in GUILD_IDS:
+                    print(
+                        f"🧹 Eliminando {len(old_commands)} "
+                        f"comandos antiguos de {guild.name}..."
+                    )
 
-        guild = bot.get_guild(guild_id)
+                    bot.tree.clear_commands(
+                        guild=guild
+                    )
 
-        if guild:
+                    await bot.tree.sync(
+                        guild=guild
+                    )
+
+                    print(
+                        f"✅ Comandos antiguos eliminados "
+                        f"de {guild.name}"
+                    )
+
+                else:
+
+                    print(
+                        f"✓ No hay comandos antiguos "
+                        f"en {guild.name}"
+                    )
+
+            except Exception as e:
+
+                print(
+                    f"⚠️ No se pudieron limpiar "
+                    f"los comandos de {guild.name}: {e}"
+                )
+
+        commands_cleaned = True
+
+        # Volver a sincronizar los globales
+        try:
+
+            synced = await bot.tree.sync()
 
             print(
-                f"   ✅ {guild.name} "
-                f"({guild.id})"
+                f"🌎 {len(synced)} comandos globales activos."
             )
 
-        else:
+        except Exception as e:
 
             print(
-                f"   ❌ No conectado a "
-                f"{guild_id}"
+                f"❌ Error sincronizando globales: {e}"
             )
 
+    print("=" * 55)
+    print("🧠 Sistema de estadísticas cargado")
+    print("📊 /am y ?am cargados")
+    print("➕ /aset y ?aset cargados")
+    print("👤 AM: todos los usuarios")
+    print("👑 ASET: solo administradores")
+    print("🌎 Slash commands: GLOBAL")
     print("=" * 55)
 
 
 # =========================================================
-# GUARDAR MENSAJES
+# REGISTRAR MENSAJES
 # =========================================================
 
 @bot.event
@@ -610,9 +625,7 @@ async def on_message(message):
 # MEMBERCOUNT
 # =========================================================
 
-@bot.command(
-    name="membercount"
-)
+@bot.command(name="membercount")
 async def membercount_prefix(ctx):
 
     if ctx.guild is None:
@@ -645,9 +658,7 @@ async def membercount_slash(
 # AM - PREFIX
 # =========================================================
 
-@bot.command(
-    name="am"
-)
+@bot.command(name="am")
 async def am_prefix(
     ctx,
     member: discord.Member = None
@@ -698,10 +709,7 @@ async def am_prefix(
     )
 
     embed = discord.Embed(
-        title=(
-            f"📊 Estadísticas de "
-            f"{target.display_name}"
-        ),
+        title=f"📊 Estadísticas de {target.display_name}",
         description=(
             f"**Hoy:** {today}\n"
             f"**Esta semana:** {week}\n"
@@ -782,10 +790,7 @@ async def am_slash(
     )
 
     embed = discord.Embed(
-        title=(
-            f"📊 Estadísticas de "
-            f"{target.display_name}"
-        ),
+        title=f"📊 Estadísticas de {target.display_name}",
         description=(
             f"**Hoy:** {today}\n"
             f"**Esta semana:** {week}\n"
@@ -807,15 +812,10 @@ async def am_slash(
 
 # =========================================================
 # ASET - PREFIX
-# SOLO ADMINISTRADORES
 # =========================================================
 
-@bot.command(
-    name="aset"
-)
-@commands.has_permissions(
-    administrator=True
-)
+@bot.command(name="aset")
+@commands.has_permissions(administrator=True)
 async def aset_prefix(
     ctx,
     period: str,
@@ -825,26 +825,21 @@ async def aset_prefix(
     period = period.lower()
 
     equivalencias = {
-
         "hoy": "hoy",
         "día": "hoy",
         "dia": "hoy",
         "today": "hoy",
-
         "semana": "semana",
         "week": "semana",
-
         "mes": "mes",
         "month": "mes",
-
         "total": "total"
     }
 
     if period not in equivalencias:
 
         await ctx.send(
-            "❌ Usa: `hoy`, `semana`, "
-            "`mes` o `total`."
+            "❌ Usa: `hoy`, `semana`, `mes` o `total`."
         )
 
         return
@@ -867,10 +862,8 @@ async def aset_prefix(
     )
 
     await ctx.send(
-        f"✅ **{period}** establecido en "
-        f"**{amount}**.\n"
-        f"Los nuevos mensajes se sumarán "
-        f"a partir de ahora."
+        f"✅ **{period}** establecido en **{amount}**.\n"
+        f"Los nuevos mensajes se sumarán a partir de ahora."
     )
 
 
@@ -932,10 +925,8 @@ async def aset_slash(
     )
 
     await interaction.response.send_message(
-        f"✅ **{period.name}** establecido en "
-        f"**{amount}**.\n"
-        f"Los nuevos mensajes se sumarán "
-        f"a partir de ahora."
+        f"✅ **{period.name}** establecido en **{amount}**.\n"
+        f"Los nuevos mensajes se sumarán a partir de ahora."
     )
 
 
@@ -943,12 +934,8 @@ async def aset_slash(
 # BAN
 # =========================================================
 
-@bot.command(
-    name="ban"
-)
-@commands.has_permissions(
-    ban_members=True
-)
+@bot.command(name="ban")
+@commands.has_permissions(ban_members=True)
 async def ban_prefix(
     ctx,
     member: discord.Member,
@@ -995,12 +982,8 @@ async def ban_slash(
 # KICK
 # =========================================================
 
-@bot.command(
-    name="kick"
-)
-@commands.has_permissions(
-    kick_members=True
-)
+@bot.command(name="kick")
+@commands.has_permissions(kick_members=True)
 async def kick_prefix(
     ctx,
     member: discord.Member,
@@ -1047,12 +1030,8 @@ async def kick_slash(
 # UNBAN
 # =========================================================
 
-@bot.command(
-    name="unban"
-)
-@commands.has_permissions(
-    ban_members=True
-)
+@bot.command(name="unban")
+@commands.has_permissions(ban_members=True)
 async def unban_prefix(
     ctx,
     user_id: int
@@ -1075,8 +1054,7 @@ async def unban_prefix(
     except discord.NotFound:
 
         await ctx.send(
-            "❌ No encontré ese usuario "
-            "entre los baneados."
+            "❌ No encontré ese usuario entre los baneados."
         )
 
 
@@ -1112,8 +1090,7 @@ async def unban_slash(
     except (discord.NotFound, ValueError):
 
         await interaction.response.send_message(
-            "❌ No encontré ese usuario "
-            "entre los baneados.",
+            "❌ No encontré ese usuario entre los baneados.",
             ephemeral=True
         )
 
@@ -1136,6 +1113,7 @@ async def setnick_prefix(
     nickname: str = None
 ):
 
+    # ?setnick nickname
     if member is None:
 
         if nickname is None:
@@ -1167,8 +1145,7 @@ async def setnick_prefix(
     if member == ctx.guild.owner:
 
         await ctx.send(
-            "❌ No puedo cambiar el nickname "
-            "del dueño."
+            "❌ No puedo cambiar el nickname del dueño."
         )
 
         return
@@ -1176,8 +1153,7 @@ async def setnick_prefix(
     if member.top_role >= ctx.guild.me.top_role:
 
         await ctx.send(
-            "❌ No puedo cambiar el nickname "
-            "de ese usuario."
+            "❌ No puedo cambiar el nickname de ese usuario."
         )
 
         return
@@ -1187,8 +1163,8 @@ async def setnick_prefix(
     )
 
     await ctx.send(
-        f"✅ Nickname de {member.mention} "
-        f"cambiado a **{nickname}**."
+        f"✅ Nickname de {member.mention} cambiado a "
+        f"**{nickname}**."
     )
 
 
@@ -1212,8 +1188,7 @@ async def setnick_slash(
     if member == interaction.guild.owner:
 
         await interaction.response.send_message(
-            "❌ No puedo cambiar el nickname "
-            "del dueño.",
+            "❌ No puedo cambiar el nickname del dueño.",
             ephemeral=True
         )
 
@@ -1222,8 +1197,7 @@ async def setnick_slash(
     if member.top_role >= interaction.guild.me.top_role:
 
         await interaction.response.send_message(
-            "❌ No puedo cambiar el nickname "
-            "de ese usuario.",
+            "❌ No puedo cambiar el nickname de ese usuario.",
             ephemeral=True
         )
 
@@ -1234,8 +1208,8 @@ async def setnick_slash(
     )
 
     await interaction.response.send_message(
-        f"✅ Nickname de {member.mention} "
-        f"cambiado a **{nickname}**."
+        f"✅ Nickname de {member.mention} cambiado a "
+        f"**{nickname}**."
     )
 
 
@@ -1243,9 +1217,7 @@ async def setnick_slash(
 # PURGE
 # =========================================================
 
-@bot.command(
-    name="purge"
-)
+@bot.command(name="purge")
 @commands.has_permissions(
     manage_messages=True
 )
@@ -1257,8 +1229,7 @@ async def purge_prefix(
     if amount < 1 or amount > 100:
 
         await ctx.send(
-            "❌ La cantidad debe estar "
-            "entre 1 y 100."
+            "❌ La cantidad debe estar entre 1 y 100."
         )
 
         return
@@ -1273,8 +1244,7 @@ async def purge_prefix(
     )
 
     confirmation = await ctx.send(
-        f"🧹 Se eliminaron "
-        f"**{deleted_count}** mensajes."
+        f"🧹 Se eliminaron **{deleted_count}** mensajes."
     )
 
     await asyncio.sleep(3)
@@ -1303,8 +1273,7 @@ async def purge_slash(
     if amount < 1 or amount > 100:
 
         await interaction.response.send_message(
-            "❌ La cantidad debe estar "
-            "entre 1 y 100.",
+            "❌ La cantidad debe estar entre 1 y 100.",
             ephemeral=True
         )
 
@@ -1319,8 +1288,7 @@ async def purge_slash(
     )
 
     await interaction.followup.send(
-        f"🧹 Se eliminaron "
-        f"**{len(deleted)}** mensajes.",
+        f"🧹 Se eliminaron **{len(deleted)}** mensajes.",
         ephemeral=True
     )
 
@@ -1329,9 +1297,7 @@ async def purge_slash(
 # PREFIX
 # =========================================================
 
-@bot.command(
-    name="prefix"
-)
+@bot.command(name="prefix")
 @commands.has_permissions(
     manage_guild=True
 )
@@ -1351,8 +1317,7 @@ async def prefix_prefix(
     if len(new_prefix) > 5:
 
         await ctx.send(
-            "❌ El prefijo puede tener "
-            "máximo 5 caracteres."
+            "❌ El prefijo puede tener máximo 5 caracteres."
         )
 
         return
@@ -1363,8 +1328,7 @@ async def prefix_prefix(
     )
 
     await ctx.send(
-        f"✅ El nuevo prefijo es "
-        f"`{new_prefix}`"
+        f"✅ El nuevo prefijo es `{new_prefix}`"
     )
 
 
@@ -1395,8 +1359,7 @@ async def prefix_slash(
     if len(new_prefix) > 5:
 
         await interaction.response.send_message(
-            "❌ El prefijo puede tener "
-            "máximo 5 caracteres.",
+            "❌ El prefijo puede tener máximo 5 caracteres.",
             ephemeral=True
         )
 
@@ -1408,13 +1371,12 @@ async def prefix_slash(
     )
 
     await interaction.response.send_message(
-        f"✅ El nuevo prefijo es "
-        f"`{new_prefix}`"
+        f"✅ El nuevo prefijo es `{new_prefix}`"
     )
 
 
 # =========================================================
-# ERRORES DE COMANDOS PREFIX
+# ERRORES PREFIX
 # =========================================================
 
 @bot.event
@@ -1435,8 +1397,7 @@ async def on_command_error(
     ):
 
         await ctx.send(
-            "❌ No tienes permisos "
-            "para usar este comando."
+            "❌ No tienes permisos para usar este comando."
         )
 
         return
@@ -1447,8 +1408,7 @@ async def on_command_error(
     ):
 
         await ctx.send(
-            "❌ Faltan argumentos "
-            "en el comando."
+            "❌ Faltan argumentos en el comando."
         )
 
         return
@@ -1459,8 +1419,7 @@ async def on_command_error(
     ):
 
         await ctx.send(
-            "❌ Uno de los argumentos "
-            "no es válido."
+            "❌ Uno de los argumentos no es válido."
         )
 
         return
@@ -1471,7 +1430,7 @@ async def on_command_error(
 
 
 # =========================================================
-# ERRORES DE SLASH COMMANDS
+# ERRORES SLASH
 # =========================================================
 
 @bot.tree.error
@@ -1488,8 +1447,7 @@ async def on_app_command_error(
         if not interaction.response.is_done():
 
             await interaction.response.send_message(
-                "❌ No tienes permisos "
-                "para usar este comando.",
+                "❌ No tienes permisos para usar este comando.",
                 ephemeral=True
             )
 
@@ -1502,8 +1460,7 @@ async def on_app_command_error(
     if not interaction.response.is_done():
 
         await interaction.response.send_message(
-            "❌ Ha ocurrido un error "
-            "al ejecutar el comando.",
+            "❌ Ha ocurrido un error al ejecutar el comando.",
             ephemeral=True
         )
 
@@ -1515,8 +1472,7 @@ async def on_app_command_error(
 if not TOKEN:
 
     raise RuntimeError(
-        "❌ No se encontró "
-        "MEMBERCOUNT_TOKEN."
+        "❌ No se encontró MEMBERCOUNT_TOKEN."
     )
 
 
