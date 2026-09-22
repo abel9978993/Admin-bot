@@ -92,7 +92,7 @@ with sqlite3.connect(MESSAGES_DB) as conn:
 
 
 # =========================================================
-# BASE DE DATOS DE AJUSTES
+# AJUSTES DE MENSAJES
 # =========================================================
 
 with sqlite3.connect(MESSAGES_DB) as conn:
@@ -175,7 +175,7 @@ def get_period_starts():
 
 
 # =========================================================
-# CONTAR MENSAJES
+# MENSAJES
 # =========================================================
 
 def count_messages(
@@ -236,7 +236,7 @@ def count_total_messages(
 
 
 # =========================================================
-# AJUSTES
+# AJUSTES DE ESTADÍSTICAS
 # =========================================================
 
 def get_adjustment(
@@ -396,10 +396,7 @@ def calculate_adjusted_value(
     if adjustment is None:
         return real_count
 
-    saved_period_start = adjustment["period_start"]
-    current_period_start = start_time.isoformat()
-
-    if saved_period_start != current_period_start:
+    if adjustment["period_start"] != start_time.isoformat():
         return real_count
 
     messages_after_adjustment = (
@@ -492,15 +489,15 @@ async def on_ready():
 
     global commands_cleaned
 
-    print("=" * 55)
+    print("=" * 60)
     print(f"🤖 Bot conectado como {bot.user}")
     print(f"🆔 ID: {bot.user.id}")
     print(f"🌐 Servidores: {len(bot.guilds)}")
-    print("=" * 55)
+    print("=" * 60)
 
     if not commands_cleaned:
 
-        print("🧹 Buscando comandos antiguos de servidor...")
+        print("🧹 Limpiando comandos antiguos de servidor...")
 
         for guild in bot.guilds:
 
@@ -514,7 +511,7 @@ async def on_ready():
 
                     print(
                         f"🧹 Eliminando {len(old_commands)} "
-                        f"comandos antiguos de {guild.name}..."
+                        f"comandos antiguos de {guild.name}"
                     )
 
                     bot.tree.clear_commands(
@@ -528,13 +525,6 @@ async def on_ready():
                     print(
                         f"✅ Comandos antiguos eliminados "
                         f"de {guild.name}"
-                    )
-
-                else:
-
-                    print(
-                        f"✓ No hay comandos antiguos "
-                        f"en {guild.name}"
                     )
 
             except Exception as e:
@@ -559,15 +549,16 @@ async def on_ready():
                 f"❌ Error sincronizando globales: {e}"
             )
 
-    print("=" * 55)
-    print("📊 Sistema de estadísticas cargado")
-    print("⬆️ Promote cargado")
-    print("⬇️ Demote cargado")
-    print("=" * 55)
+    print("=" * 60)
+    print("📊 Estadísticas: ACTIVADAS")
+    print("⬆️ Promote: ACTIVADO")
+    print("⬇️ Demote: ACTIVADO")
+    print("🎭 Role Add/Remove: ACTIVADO")
+    print("=" * 60)
 
 
 # =========================================================
-# MENSAJES
+# REGISTRAR MENSAJES
 # =========================================================
 
 @bot.event
@@ -866,7 +857,9 @@ async def ban_prefix(
     reason: str = "Sin razón especificada"
 ):
 
-    await member.ban(reason=reason)
+    await member.ban(
+        reason=reason
+    )
 
     await ctx.send(
         f"🔨 {member.mention} ha sido baneado."
@@ -890,7 +883,9 @@ async def ban_slash(
     reason: str = "Sin razón especificada"
 ):
 
-    await member.ban(reason=reason)
+    await member.ban(
+        reason=reason
+    )
 
     await interaction.response.send_message(
         f"🔨 {member.mention} ha sido baneado."
@@ -910,7 +905,9 @@ async def kick_prefix(
     reason: str = "Sin razón especificada"
 ):
 
-    await member.kick(reason=reason)
+    await member.kick(
+        reason=reason
+    )
 
     await ctx.send(
         f"👢 {member.mention} ha sido expulsado."
@@ -934,7 +931,9 @@ async def kick_slash(
     reason: str = "Sin razón especificada"
 ):
 
-    await member.kick(reason=reason)
+    await member.kick(
+        reason=reason
+    )
 
     await interaction.response.send_message(
         f"👢 {member.mention} ha sido expulsado."
@@ -1288,7 +1287,7 @@ async def prefix_slash(
 
 
 # =========================================================
-# PROMOTE / DEMOTE
+# FUNCIONES DE ROLES
 # =========================================================
 
 def get_manageable_roles(
@@ -1308,32 +1307,28 @@ def get_manageable_roles(
 
     for role in guild.roles:
 
-        # @everyone
+        # Nunca @everyone
         if role.is_default():
             continue
 
-        # Rol del bot o superior
-        if role >= bot_top_role:
+        # Nunca roles gestionados por bots/integraciones
+        if role.managed:
             continue
 
-        # Rol administrado por integración/bot
-        if role.managed:
+        # El bot no puede tocar su mismo rol o superiores
+        if role >= bot_top_role:
             continue
 
         if promote:
 
-            # Solo roles superiores al rol principal
-            # actual del usuario
             if role > member.top_role:
                 roles.append(role)
 
         else:
 
-            # Solo roles inferiores al rol principal actual
             if role < member.top_role:
                 roles.append(role)
 
-    # De mayor a menor
     roles.sort(
         key=lambda r: r.position,
         reverse=True
@@ -1341,6 +1336,10 @@ def get_manageable_roles(
 
     return roles
 
+
+# =========================================================
+# PANEL PROMOTE / DEMOTE
+# =========================================================
 
 class RoleSelect(discord.ui.Select):
 
@@ -1362,18 +1361,17 @@ class RoleSelect(discord.ui.Select):
                 discord.SelectOption(
                     label=role.name[:100],
                     value=str(role.id),
-                    description=(
-                        f"Nivel {role.position}"
-                    )[:100]
+                    description=f"Nivel {role.position}"[:100]
                 )
             )
 
-        placeholder = (
-            "Selecciona el nuevo rol"
-            if promote
-            else
-            "Selecciona el rol para bajar"
-        )
+        if promote:
+
+            placeholder = "Selecciona el nuevo rol"
+
+        else:
+
+            placeholder = "Selecciona el nuevo rol"
 
         super().__init__(
             placeholder=placeholder,
@@ -1389,12 +1387,12 @@ class RoleSelect(discord.ui.Select):
 
         guild = interaction.guild
 
-        selected_role_id = int(
+        role_id = int(
             self.values[0]
         )
 
         role = guild.get_role(
-            selected_role_id
+            role_id
         )
 
         if role is None:
@@ -1417,61 +1415,46 @@ class RoleSelect(discord.ui.Select):
 
             return
 
-        # Seguridad
         if role >= bot_member.top_role:
 
             await interaction.response.send_message(
-                "❌ No puedo asignar ese rol porque "
-                "está al mismo nivel o por encima de mi rol.",
+                "❌ No puedo gestionar ese rol.",
                 ephemeral=True
             )
 
             return
 
-        # Evitar modificar al dueño
         if self.target_member == guild.owner:
 
             await interaction.response.send_message(
-                "❌ No puedes cambiar los roles del dueño.",
+                "❌ No puedes modificar los roles del dueño.",
                 ephemeral=True
             )
 
             return
 
-        # Comprobar jerarquía del usuario objetivo
         if self.target_member.top_role >= bot_member.top_role:
 
             await interaction.response.send_message(
-                "❌ No puedo modificar a este usuario "
-                "porque su rol es igual o superior al mío.",
+                "❌ No puedo modificar a este usuario porque "
+                "su rol está al mismo nivel o por encima del mío.",
                 ephemeral=True
             )
 
             return
 
+        old_role = self.target_member.top_role
+
         try:
-
-            old_role = self.target_member.top_role
-
-            # =================================================
-            # PROMOTE
-            # =================================================
 
             if self.promote:
 
-                # Quitamos el rol anterior si no es @everyone
                 if not old_role.is_default():
 
-                    try:
-
-                        await self.target_member.remove_roles(
-                            old_role,
-                            reason=f"Promote por {interaction.user}"
-                        )
-
-                    except discord.Forbidden:
-
-                        pass
+                    await self.target_member.remove_roles(
+                        old_role,
+                        reason=f"Promote por {interaction.user}"
+                    )
 
                 await self.target_member.add_roles(
                     role,
@@ -1489,10 +1472,6 @@ class RoleSelect(discord.ui.Select):
                     color=discord.Color.green()
                 )
 
-            # =================================================
-            # DEMOTE
-            # =================================================
-
             else:
 
                 if role == old_role:
@@ -1504,18 +1483,12 @@ class RoleSelect(discord.ui.Select):
 
                     return
 
-                if not role.is_default():
+                if not old_role.is_default():
 
-                    try:
-
-                        await self.target_member.remove_roles(
-                            old_role,
-                            reason=f"Demote por {interaction.user}"
-                        )
-
-                    except discord.Forbidden:
-
-                        pass
+                    await self.target_member.remove_roles(
+                        old_role,
+                        reason=f"Demote por {interaction.user}"
+                    )
 
                 if not role.is_default():
 
@@ -1543,15 +1516,14 @@ class RoleSelect(discord.ui.Select):
         except discord.Forbidden:
 
             await interaction.response.send_message(
-                "❌ Discord no me permite modificar "
-                "los roles de este usuario.",
+                "❌ Discord no me permite modificar estos roles.",
                 ephemeral=True
             )
 
         except Exception as e:
 
             print(
-                f"❌ Error en RoleSelect: {e}"
+                f"❌ Error en panel de roles: {e}"
             )
 
             await interaction.response.send_message(
@@ -1591,10 +1563,12 @@ def create_role_panel_embed(
     if promote:
 
         title = "⬆️ Promote"
+
         description = (
             f"Selecciona el nuevo rol para "
             f"**{target.display_name}**.\n\n"
-            "Solo aparecen los roles que puedo asignar."
+            "Solo aparecen los roles superiores "
+            "que el bot puede asignar."
         )
 
         color = discord.Color.green()
@@ -1602,10 +1576,12 @@ def create_role_panel_embed(
     else:
 
         title = "⬇️ Demote"
+
         description = (
             f"Selecciona el nuevo rol para "
             f"**{target.display_name}**.\n\n"
-            "Solo aparecen los roles inferiores disponibles."
+            "Solo aparecen los roles inferiores "
+            "que el bot puede asignar."
         )
 
         color = discord.Color.orange()
@@ -1624,7 +1600,7 @@ def create_role_panel_embed(
 
 
 # =========================================================
-# PROMOTE PREFIX
+# PROMOTE
 # =========================================================
 
 @bot.command(name="promote")
@@ -1655,14 +1631,13 @@ async def promote_prefix(
     roles = get_manageable_roles(
         ctx.guild,
         member,
-        promote=True
+        True
     )
 
     if not roles:
 
         await ctx.send(
-            "❌ No hay ningún rol superior disponible "
-            "que pueda asignarle."
+            "❌ No hay ningún rol superior disponible."
         )
 
         return
@@ -1685,13 +1660,9 @@ async def promote_prefix(
     )
 
 
-# =========================================================
-# PROMOTE SLASH
-# =========================================================
-
 @bot.tree.command(
     name="promote",
-    description="Promueve a un usuario a otro rol"
+    description="Promueve a un usuario"
 )
 @app_commands.describe(
     member="Usuario que quieres promover"
@@ -1725,7 +1696,7 @@ async def promote_slash(
     roles = get_manageable_roles(
         interaction.guild,
         member,
-        promote=True
+        True
     )
 
     if not roles:
@@ -1756,7 +1727,7 @@ async def promote_slash(
 
 
 # =========================================================
-# DEMOTE PREFIX
+# DEMOTE
 # =========================================================
 
 @bot.command(name="demote")
@@ -1787,7 +1758,7 @@ async def demote_prefix(
     roles = get_manageable_roles(
         ctx.guild,
         member,
-        promote=False
+        False
     )
 
     if not roles:
@@ -1816,13 +1787,9 @@ async def demote_prefix(
     )
 
 
-# =========================================================
-# DEMOTE SLASH
-# =========================================================
-
 @bot.tree.command(
     name="demote",
-    description="Degrada a un usuario a otro rol"
+    description="Degrada a un usuario"
 )
 @app_commands.describe(
     member="Usuario que quieres degradar"
@@ -1856,7 +1823,7 @@ async def demote_slash(
     roles = get_manageable_roles(
         interaction.guild,
         member,
-        promote=False
+        False
     )
 
     if not roles:
@@ -1887,7 +1854,447 @@ async def demote_slash(
 
 
 # =========================================================
-# ERRORES PREFIX
+# ROLE ADD / REMOVE
+# =========================================================
+
+@bot.group(
+    name="role",
+    invoke_without_command=True
+)
+@commands.has_permissions(
+    manage_roles=True
+)
+async def role_prefix(ctx):
+
+    prefix = get_prefix(
+        ctx.guild.id
+    )
+
+    await ctx.send(
+        "❌ Usa uno de estos comandos:\n\n"
+        f"`{prefix}role add @usuario @rol`\n"
+        f"`{prefix}role remove @usuario @rol`"
+    )
+
+
+@role_prefix.command(
+    name="add"
+)
+@commands.has_permissions(
+    manage_roles=True
+)
+async def role_add_prefix(
+    ctx,
+    member: discord.Member,
+    role: discord.Role
+):
+
+    bot_member = ctx.guild.me
+
+    if bot_member is None:
+
+        await ctx.send(
+            "❌ No puedo comprobar mi rol."
+        )
+
+        return
+
+    if role.is_default():
+
+        await ctx.send(
+            "❌ No puedes añadir @everyone."
+        )
+
+        return
+
+    if role.managed:
+
+        await ctx.send(
+            "❌ No puedes asignar un rol gestionado "
+            "por una integración."
+        )
+
+        return
+
+    if role >= bot_member.top_role:
+
+        await ctx.send(
+            "❌ No puedo asignar ese rol porque está "
+            "al mismo nivel o por encima de mi rol."
+        )
+
+        return
+
+    if member.top_role >= bot_member.top_role:
+
+        await ctx.send(
+            "❌ No puedo modificar los roles de este usuario."
+        )
+
+        return
+
+    if role in member.roles:
+
+        await ctx.send(
+            f"❌ {member.mention} ya tiene {role.mention}."
+        )
+
+        return
+
+    try:
+
+        await member.add_roles(
+            role,
+            reason=f"Role add por {ctx.author}"
+        )
+
+        await ctx.send(
+            f"✅ Se añadió {role.mention} a "
+            f"{member.mention}."
+        )
+
+    except discord.Forbidden:
+
+        await ctx.send(
+            "❌ Discord no me permite añadir ese rol."
+        )
+
+    except Exception as e:
+
+        print(
+            f"❌ Error en role add: {e}"
+        )
+
+        await ctx.send(
+            "❌ Ocurrió un error al añadir el rol."
+        )
+
+
+@role_prefix.command(
+    name="remove"
+)
+@commands.has_permissions(
+    manage_roles=True
+)
+async def role_remove_prefix(
+    ctx,
+    member: discord.Member,
+    role: discord.Role
+):
+
+    bot_member = ctx.guild.me
+
+    if bot_member is None:
+
+        await ctx.send(
+            "❌ No puedo comprobar mi rol."
+        )
+
+        return
+
+    if role.is_default():
+
+        await ctx.send(
+            "❌ No puedes quitar @everyone."
+        )
+
+        return
+
+    if role.managed:
+
+        await ctx.send(
+            "❌ No puedes quitar un rol gestionado "
+            "por una integración."
+        )
+
+        return
+
+    if role >= bot_member.top_role:
+
+        await ctx.send(
+            "❌ No puedo quitar ese rol porque está "
+            "al mismo nivel o por encima de mi rol."
+        )
+
+        return
+
+    if member.top_role >= bot_member.top_role:
+
+        await ctx.send(
+            "❌ No puedo modificar los roles de este usuario."
+        )
+
+        return
+
+    if role not in member.roles:
+
+        await ctx.send(
+            f"❌ {member.mention} no tiene {role.mention}."
+        )
+
+        return
+
+    try:
+
+        await member.remove_roles(
+            role,
+            reason=f"Role remove por {ctx.author}"
+        )
+
+        await ctx.send(
+            f"✅ Se quitó {role.mention} de "
+            f"{member.mention}."
+        )
+
+    except discord.Forbidden:
+
+        await ctx.send(
+            "❌ Discord no me permite quitar ese rol."
+        )
+
+    except Exception as e:
+
+        print(
+            f"❌ Error en role remove: {e}"
+        )
+
+        await ctx.send(
+            "❌ Ocurrió un error al quitar el rol."
+        )
+
+
+# =========================================================
+# SLASH /ROLE
+# =========================================================
+
+role_group = app_commands.Group(
+    name="role",
+    description="Gestiona los roles de los usuarios"
+)
+
+
+@role_group.command(
+    name="add",
+    description="Añade un rol a un usuario"
+)
+@app_commands.describe(
+    member="Usuario al que añadir el rol",
+    role="Rol que quieres añadir"
+)
+@app_commands.checks.has_permissions(
+    manage_roles=True
+)
+async def role_add_slash(
+    interaction: discord.Interaction,
+    member: discord.Member,
+    role: discord.Role
+):
+
+    guild = interaction.guild
+    bot_member = guild.me
+
+    if bot_member is None:
+
+        await interaction.response.send_message(
+            "❌ No puedo comprobar mi rol.",
+            ephemeral=True
+        )
+
+        return
+
+    if role.is_default():
+
+        await interaction.response.send_message(
+            "❌ No puedes añadir @everyone.",
+            ephemeral=True
+        )
+
+        return
+
+    if role.managed:
+
+        await interaction.response.send_message(
+            "❌ No puedes asignar un rol gestionado "
+            "por una integración.",
+            ephemeral=True
+        )
+
+        return
+
+    if role >= bot_member.top_role:
+
+        await interaction.response.send_message(
+            "❌ No puedo asignar ese rol porque está "
+            "al mismo nivel o por encima de mi rol.",
+            ephemeral=True
+        )
+
+        return
+
+    if member.top_role >= bot_member.top_role:
+
+        await interaction.response.send_message(
+            "❌ No puedo modificar los roles de este usuario.",
+            ephemeral=True
+        )
+
+        return
+
+    if role in member.roles:
+
+        await interaction.response.send_message(
+            f"❌ {member.mention} ya tiene {role.mention}.",
+            ephemeral=True
+        )
+
+        return
+
+    try:
+
+        await member.add_roles(
+            role,
+            reason=f"Role add por {interaction.user}"
+        )
+
+        await interaction.response.send_message(
+            f"✅ Se añadió {role.mention} a "
+            f"{member.mention}."
+        )
+
+    except discord.Forbidden:
+
+        await interaction.response.send_message(
+            "❌ Discord no me permite añadir ese rol.",
+            ephemeral=True
+        )
+
+    except Exception as e:
+
+        print(
+            f"❌ Error en /role add: {e}"
+        )
+
+        await interaction.response.send_message(
+            "❌ Ocurrió un error al añadir el rol.",
+            ephemeral=True
+        )
+
+
+@role_group.command(
+    name="remove",
+    description="Quita un rol a un usuario"
+)
+@app_commands.describe(
+    member="Usuario al que quitar el rol",
+    role="Rol que quieres quitar"
+)
+@app_commands.checks.has_permissions(
+    manage_roles=True
+)
+async def role_remove_slash(
+    interaction: discord.Interaction,
+    member: discord.Member,
+    role: discord.Role
+):
+
+    guild = interaction.guild
+    bot_member = guild.me
+
+    if bot_member is None:
+
+        await interaction.response.send_message(
+            "❌ No puedo comprobar mi rol.",
+            ephemeral=True
+        )
+
+        return
+
+    if role.is_default():
+
+        await interaction.response.send_message(
+            "❌ No puedes quitar @everyone.",
+            ephemeral=True
+        )
+
+        return
+
+    if role.managed:
+
+        await interaction.response.send_message(
+            "❌ No puedes quitar un rol gestionado "
+            "por una integración.",
+            ephemeral=True
+        )
+
+        return
+
+    if role >= bot_member.top_role:
+
+        await interaction.response.send_message(
+            "❌ No puedo quitar ese rol porque está "
+            "al mismo nivel o por encima de mi rol.",
+            ephemeral=True
+        )
+
+        return
+
+    if member.top_role >= bot_member.top_role:
+
+        await interaction.response.send_message(
+            "❌ No puedo modificar los roles de este usuario.",
+            ephemeral=True
+        )
+
+        return
+
+    if role not in member.roles:
+
+        await interaction.response.send_message(
+            f"❌ {member.mention} no tiene {role.mention}.",
+            ephemeral=True
+        )
+
+        return
+
+    try:
+
+        await member.remove_roles(
+            role,
+            reason=f"Role remove por {interaction.user}"
+        )
+
+        await interaction.response.send_message(
+            f"✅ Se quitó {role.mention} de "
+            f"{member.mention}."
+        )
+
+    except discord.Forbidden:
+
+        await interaction.response.send_message(
+            "❌ Discord no me permite quitar ese rol.",
+            ephemeral=True
+        )
+
+    except Exception as e:
+
+        print(
+            f"❌ Error en /role remove: {e}"
+        )
+
+        await interaction.response.send_message(
+            "❌ Ocurrió un error al quitar el rol.",
+            ephemeral=True
+        )
+
+
+# Registrar SOLO una vez el grupo /role
+bot.tree.add_command(
+    role_group
+)
+
+
+# =========================================================
+# ERRORES DE PREFIX
 # =========================================================
 
 @bot.event
@@ -1918,9 +2325,13 @@ async def on_command_error(
         commands.MissingRequiredArgument
     ):
 
+        prefix = get_prefix(
+            ctx.guild.id
+        )
+
         await ctx.send(
-            "❌ Falta un argumento. Ejemplo: "
-            f"`{get_prefix(ctx.guild.id)}promote @usuario`"
+            f"❌ Faltan argumentos.\n"
+            f"Ejemplo: `{prefix}{ctx.command.qualified_name} @usuario`"
         )
 
         return
@@ -1931,7 +2342,7 @@ async def on_command_error(
     ):
 
         await ctx.send(
-            "❌ El usuario indicado no es válido."
+            "❌ Uno de los argumentos no es válido."
         )
 
         return
@@ -1942,7 +2353,7 @@ async def on_command_error(
 
 
 # =========================================================
-# ERRORES SLASH
+# ERRORES DE SLASH
 # =========================================================
 
 @bot.tree.error
@@ -1978,7 +2389,7 @@ async def on_app_command_error(
 
 
 # =========================================================
-# INICIAR
+# INICIAR BOT
 # =========================================================
 
 if not TOKEN:
