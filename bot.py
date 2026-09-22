@@ -24,16 +24,12 @@ intents.members = True
 intents.message_content = True
 
 
-# =========================================================
-# BASE DE DATOS
-# =========================================================
-
 PREFIX_DB = "prefixes.db"
 MESSAGE_DB = "messages.db"
 
 
 # =========================================================
-# BASE DE DATOS DE PREFIJOS
+# PREFIJOS
 # =========================================================
 
 def init_prefix_db():
@@ -54,10 +50,7 @@ def get_prefix(guild_id):
             (guild_id,)
         ).fetchone()
 
-    if row:
-        return row[0]
-
-    return "?"
+    return row[0] if row else "?"
 
 
 def set_prefix(guild_id, prefix):
@@ -68,7 +61,6 @@ def set_prefix(guild_id, prefix):
             ON CONFLICT(guild_id)
             DO UPDATE SET prefix = excluded.prefix
         """, (guild_id, prefix))
-
         conn.commit()
 
 
@@ -84,6 +76,7 @@ def get_bot_prefix(bot, message):
 # =========================================================
 
 def init_message_db():
+
     with sqlite3.connect(MESSAGE_DB) as conn:
 
         conn.execute("""
@@ -119,20 +112,18 @@ def init_message_db():
 
 
 # =========================================================
-# ACTIVAR / DESACTIVAR MENSAJES
+# ACTIVAR / DESACTIVAR CONTEO
 # =========================================================
 
 def is_message_tracking_enabled(guild_id):
 
     with sqlite3.connect(MESSAGE_DB) as conn:
-        row = conn.execute(
-            """
+
+        row = conn.execute("""
             SELECT enabled
             FROM message_settings
             WHERE guild_id = ?
-            """,
-            (guild_id,)
-        ).fetchone()
+        """, (guild_id,)).fetchone()
 
     if row is None:
         return True
@@ -145,8 +136,12 @@ def set_message_tracking(guild_id, enabled):
     with sqlite3.connect(MESSAGE_DB) as conn:
 
         conn.execute("""
-            INSERT INTO message_settings (guild_id, enabled)
+            INSERT INTO message_settings (
+                guild_id,
+                enabled
+            )
             VALUES (?, ?)
+
             ON CONFLICT(guild_id)
             DO UPDATE SET enabled = excluded.enabled
         """, (
@@ -158,7 +153,7 @@ def set_message_tracking(guild_id, enabled):
 
 
 # =========================================================
-# FUNCIONES DE ESTADÍSTICAS
+# PERIODOS
 # =========================================================
 
 def get_period_start(period):
@@ -166,6 +161,7 @@ def get_period_start(period):
     now = datetime.now(timezone.utc)
 
     if period == "today":
+
         return now.replace(
             hour=0,
             minute=0,
@@ -174,7 +170,10 @@ def get_period_start(period):
         )
 
     if period == "week":
-        start = now - timedelta(days=now.weekday())
+
+        start = now - timedelta(
+            days=now.weekday()
+        )
 
         return start.replace(
             hour=0,
@@ -184,6 +183,7 @@ def get_period_start(period):
         )
 
     if period == "month":
+
         return now.replace(
             day=1,
             hour=0,
@@ -193,6 +193,7 @@ def get_period_start(period):
         )
 
     if period == "year":
+
         return now.replace(
             month=1,
             day=1,
@@ -205,9 +206,15 @@ def get_period_start(period):
     return None
 
 
-def get_real_message_count(guild_id, user_id, period):
+# =========================================================
+# CONTADOR REAL
+# =========================================================
 
-    now = datetime.now(timezone.utc)
+def get_real_message_count(
+    guild_id,
+    user_id,
+    period
+):
 
     with sqlite3.connect(MESSAGE_DB) as conn:
 
@@ -242,7 +249,15 @@ def get_real_message_count(guild_id, user_id, period):
     return row[0] if row else 0
 
 
-def get_adjusted_count(guild_id, user_id, period):
+# =========================================================
+# ESTADÍSTICAS AJUSTADAS
+# =========================================================
+
+def get_adjusted_count(
+    guild_id,
+    user_id,
+    period
+):
 
     real_count = get_real_message_count(
         guild_id,
@@ -253,7 +268,10 @@ def get_adjusted_count(guild_id, user_id, period):
     with sqlite3.connect(MESSAGE_DB) as conn:
 
         row = conn.execute("""
-            SELECT amount, reference_real, period_start
+            SELECT
+                amount,
+                reference_real,
+                period_start
             FROM message_adjustments
             WHERE guild_id = ?
             AND user_id = ?
@@ -271,17 +289,30 @@ def get_adjusted_count(guild_id, user_id, period):
 
     if period != "total":
 
-        current_period_start = get_period_start(period)
+        current_period_start = get_period_start(
+            period
+        )
 
         if saved_period_start != current_period_start.isoformat():
             return real_count
 
-    result = amount + (real_count - reference_real)
+    result = amount + (
+        real_count - reference_real
+    )
 
     return max(0, result)
 
 
-def set_adjustment(guild_id, user_id, period, amount):
+# =========================================================
+# AJUSTAR ESTADÍSTICAS
+# =========================================================
+
+def set_adjustment(
+    guild_id,
+    user_id,
+    period,
+    amount
+):
 
     real_count = get_real_message_count(
         guild_id,
@@ -290,8 +321,11 @@ def set_adjustment(guild_id, user_id, period, amount):
     )
 
     if period == "total":
+
         period_start = None
+
     else:
+
         period_start = get_period_start(
             period
         ).isoformat()
@@ -299,8 +333,7 @@ def set_adjustment(guild_id, user_id, period, amount):
     with sqlite3.connect(MESSAGE_DB) as conn:
 
         conn.execute("""
-            INSERT INTO message_adjustments
-            (
+            INSERT INTO message_adjustments (
                 guild_id,
                 user_id,
                 period,
@@ -310,7 +343,12 @@ def set_adjustment(guild_id, user_id, period, amount):
             )
             VALUES (?, ?, ?, ?, ?, ?)
 
-            ON CONFLICT(guild_id, user_id, period)
+            ON CONFLICT(
+                guild_id,
+                user_id,
+                period
+            )
+
             DO UPDATE SET
                 amount = excluded.amount,
                 reference_real = excluded.reference_real,
@@ -374,7 +412,7 @@ async def on_ready():
     print(f"🤖 Bot conectado: {bot.user}")
     print(f"🆔 ID: {bot.user.id}")
     print(f"🌐 Servidores: {len(bot.guilds)}")
-    print("✅ Abel MemberCount está listo.")
+    print("✅ Bot listo.")
     print("=" * 50)
 
     if not commands_cleaned:
@@ -398,14 +436,15 @@ async def on_ready():
                     )
 
                     print(
-                        f"🧹 Comandos antiguos eliminados de {guild.name}"
+                        f"🧹 Comandos antiguos eliminados de "
+                        f"{guild.name}"
                     )
 
             except Exception as e:
 
                 print(
                     f"⚠️ No se pudieron limpiar "
-                    f"los comandos de {guild.name}: {e}"
+                    f"{guild.name}: {e}"
                 )
 
         commands_cleaned = True
@@ -426,7 +465,7 @@ async def on_ready():
 
 
 # =========================================================
-# CONTADOR DE MENSAJES
+# GUARDAR MENSAJES
 # =========================================================
 
 @bot.event
@@ -446,8 +485,7 @@ async def on_message(message):
                 with sqlite3.connect(MESSAGE_DB) as conn:
 
                     conn.execute("""
-                        INSERT INTO messages
-                        (
+                        INSERT INTO messages (
                             guild_id,
                             user_id,
                             channel_id,
@@ -498,9 +536,7 @@ async def membercount_prefix(ctx):
     name="membercount",
     description="Muestra el número de miembros del servidor"
 )
-async def membercount_slash(
-    interaction: discord.Interaction
-):
+async def membercount_slash(interaction):
 
     count = interaction.guild.member_count
 
@@ -522,7 +558,9 @@ async def membercount_slash(
 # =========================================================
 
 @bot.command(name="aenable")
-@commands.has_permissions(administrator=True)
+@commands.has_permissions(
+    administrator=True
+)
 async def aenable_prefix(ctx):
 
     set_message_tracking(
@@ -531,28 +569,28 @@ async def aenable_prefix(ctx):
     )
 
     embed = discord.Embed(
-        title="✅ Message Tracking Activado",
+        title="✅ Conteo de mensajes activado",
         description=(
-            "El contador de mensajes ha sido activado "
+            "El conteo de mensajes está ahora **activado** "
             "en este servidor.\n\n"
             "Los nuevos mensajes volverán a contabilizarse."
         ),
         color=discord.Color.green()
     )
 
-    await ctx.send(embed=embed)
+    await ctx.send(
+        embed=embed
+    )
 
 
 @bot.tree.command(
     name="aenable",
-    description="Activa el contador de mensajes"
+    description="Activa el conteo de mensajes"
 )
 @app_commands.checks.has_permissions(
     administrator=True
 )
-async def aenable_slash(
-    interaction: discord.Interaction
-):
+async def aenable_slash(interaction):
 
     set_message_tracking(
         interaction.guild.id,
@@ -560,9 +598,9 @@ async def aenable_slash(
     )
 
     embed = discord.Embed(
-        title="✅ Message Tracking Activado",
+        title="✅ Conteo de mensajes activado",
         description=(
-            "El contador de mensajes ha sido activado "
+            "El conteo de mensajes está ahora **activado** "
             "en este servidor.\n\n"
             "Los nuevos mensajes volverán a contabilizarse."
         ),
@@ -580,7 +618,9 @@ async def aenable_slash(
 # =========================================================
 
 @bot.command(name="adesable")
-@commands.has_permissions(administrator=True)
+@commands.has_permissions(
+    administrator=True
+)
 async def adesable_prefix(ctx):
 
     set_message_tracking(
@@ -589,28 +629,28 @@ async def adesable_prefix(ctx):
     )
 
     embed = discord.Embed(
-        title="🛑 Message Tracking Desactivado",
+        title="🛑 Conteo de mensajes desactivado",
         description=(
-            "El contador de mensajes ha sido desactivado "
+            "El conteo de mensajes está ahora **desactivado** "
             "en este servidor.\n\n"
             "Los nuevos mensajes ya no se contabilizarán."
         ),
         color=discord.Color.red()
     )
 
-    await ctx.send(embed=embed)
+    await ctx.send(
+        embed=embed
+    )
 
 
 @bot.tree.command(
     name="adesable",
-    description="Desactiva el contador de mensajes"
+    description="Desactiva el conteo de mensajes"
 )
 @app_commands.checks.has_permissions(
     administrator=True
 )
-async def adesable_slash(
-    interaction: discord.Interaction
-):
+async def adesable_slash(interaction):
 
     set_message_tracking(
         interaction.guild.id,
@@ -618,9 +658,9 @@ async def adesable_slash(
     )
 
     embed = discord.Embed(
-        title="🛑 Message Tracking Desactivado",
+        title="🛑 Conteo de mensajes desactivado",
         description=(
-            "El contador de mensajes ha sido desactivado "
+            "El conteo de mensajes está ahora **desactivado** "
             "en este servidor.\n\n"
             "Los nuevos mensajes ya no se contabilizarán."
         ),
@@ -672,16 +712,6 @@ def create_am_embed(
         "total"
     )
 
-    enabled = is_message_tracking_enabled(
-        guild.id
-    )
-
-    status = (
-        "🟢 Activo"
-        if enabled
-        else "🔴 Desactivado"
-    )
-
     embed = discord.Embed(
         title=f"📊 Actividad de {member.display_name}",
         color=discord.Color.blurple()
@@ -722,9 +752,35 @@ def create_am_embed(
     )
 
     embed.add_field(
-        name="⚙️ Contador",
-        value=status,
+        name="⚙️ Estado",
+        value="🟢 Activado",
         inline=True
+    )
+
+    return embed
+
+
+def create_disabled_am_embed(
+    guild
+):
+
+    prefix = get_prefix(
+        guild.id
+    )
+
+    embed = discord.Embed(
+        title="🛑 Conteo de mensajes desactivado",
+        description=(
+            "El sistema de conteo de mensajes **no está activado** "
+            "en este servidor.\n\n"
+            "Las estadísticas de mensajes no están disponibles "
+            "mientras esta opción esté desactivada.\n\n"
+            "Un administrador puede activarlo usando:\n"
+            f"`{prefix}aenable`\n"
+            "o\n"
+            "`/aenable`"
+        ),
+        color=discord.Color.red()
     )
 
     return embed
@@ -741,8 +797,9 @@ async def am_prefix(
     ):
 
         await ctx.send(
-            "🛑 El contador de mensajes está desactivado "
-            "en este servidor."
+            embed=create_disabled_am_embed(
+                ctx.guild
+            )
         )
 
         return
@@ -755,7 +812,9 @@ async def am_prefix(
         member
     )
 
-    await ctx.send(embed=embed)
+    await ctx.send(
+        embed=embed
+    )
 
 
 @bot.tree.command(
@@ -775,8 +834,9 @@ async def am_slash(
     ):
 
         await interaction.response.send_message(
-            "🛑 El contador de mensajes está desactivado "
-            "en este servidor.",
+            embed=create_disabled_am_embed(
+                interaction.guild
+            ),
             ephemeral=True
         )
 
@@ -800,6 +860,7 @@ async def am_slash(
 # =========================================================
 
 PERIOD_TRANSLATIONS = {
+
     "hoy": "today",
     "dia": "today",
     "día": "today",
@@ -816,7 +877,9 @@ PERIOD_TRANSLATIONS = {
 
 
 @bot.command(name="aset")
-@commands.has_permissions(administrator=True)
+@commands.has_permissions(
+    administrator=True
+)
 async def aset_prefix(
     ctx,
     period: str,
@@ -893,7 +956,7 @@ async def aset_prefix(
     administrator=True
 )
 async def aset_slash(
-    interaction: discord.Interaction,
+    interaction,
     period: app_commands.Choice[str],
     amount: int
 ):
@@ -926,7 +989,9 @@ async def aset_slash(
 # =========================================================
 
 @bot.command(name="ban")
-@commands.has_permissions(ban_members=True)
+@commands.has_permissions(
+    ban_members=True
+)
 async def ban_prefix(
     ctx,
     member: discord.Member,
@@ -942,7 +1007,9 @@ async def ban_prefix(
 
         return
 
-    await member.ban(reason=reason)
+    await member.ban(
+        reason=reason
+    )
 
     await ctx.send(
         f"🔨 **{member}** ha sido baneado.\n"
@@ -962,7 +1029,7 @@ async def ban_prefix(
     ban_members=True
 )
 async def ban_slash(
-    interaction: discord.Interaction,
+    interaction,
     member: discord.Member,
     reason: str = "Sin razón"
 ):
@@ -976,7 +1043,9 @@ async def ban_slash(
 
         return
 
-    await member.ban(reason=reason)
+    await member.ban(
+        reason=reason
+    )
 
     await interaction.response.send_message(
         f"🔨 **{member}** ha sido baneado.\n"
@@ -989,7 +1058,9 @@ async def ban_slash(
 # =========================================================
 
 @bot.command(name="kick")
-@commands.has_permissions(kick_members=True)
+@commands.has_permissions(
+    kick_members=True
+)
 async def kick_prefix(
     ctx,
     member: discord.Member,
@@ -1005,7 +1076,9 @@ async def kick_prefix(
 
         return
 
-    await member.kick(reason=reason)
+    await member.kick(
+        reason=reason
+    )
 
     await ctx.send(
         f"👢 **{member}** ha sido expulsado.\n"
@@ -1025,7 +1098,7 @@ async def kick_prefix(
     kick_members=True
 )
 async def kick_slash(
-    interaction: discord.Interaction,
+    interaction,
     member: discord.Member,
     reason: str = "Sin razón"
 ):
@@ -1039,7 +1112,9 @@ async def kick_slash(
 
         return
 
-    await member.kick(reason=reason)
+    await member.kick(
+        reason=reason
+    )
 
     await interaction.response.send_message(
         f"👢 **{member}** ha sido expulsado.\n"
@@ -1052,7 +1127,9 @@ async def kick_slash(
 # =========================================================
 
 @bot.command(name="unban")
-@commands.has_permissions(ban_members=True)
+@commands.has_permissions(
+    ban_members=True
+)
 async def unban_prefix(
     ctx,
     user_id: int
@@ -1064,7 +1141,9 @@ async def unban_prefix(
             user_id
         )
 
-        await ctx.guild.unban(user)
+        await ctx.guild.unban(
+            user
+        )
 
         await ctx.send(
             f"✅ **{user}** ha sido desbaneado."
@@ -1088,7 +1167,7 @@ async def unban_prefix(
     ban_members=True
 )
 async def unban_slash(
-    interaction: discord.Interaction,
+    interaction,
     user_id: str
 ):
 
@@ -1137,7 +1216,7 @@ async def execute_setnick(
     if me is None:
 
         await ctx.send(
-            "❌ No puedo encontrar mi usuario en el servidor."
+            "❌ No puedo encontrar mi usuario."
         )
 
         return
@@ -1146,8 +1225,7 @@ async def execute_setnick(
 
         await ctx.send(
             "❌ No puedo cambiar el nickname de ese usuario "
-            "porque su rol más alto está al mismo nivel "
-            "o por encima del mío."
+            "porque su rol está al mismo nivel o por encima del mío."
         )
 
         return
@@ -1190,16 +1268,17 @@ async def setnick_prefix(
 
     if not args:
 
+        prefix = get_prefix(
+            ctx.guild.id
+        )
+
         await ctx.send(
-            f"❌ Uso:\n"
-            f"`{get_prefix(ctx.guild.id)}setnick @usuario nickname`\n"
-            f"`{get_prefix(ctx.guild.id)}setnick nickname`"
+            "❌ Uso:\n"
+            f"`{prefix}setnick @usuario nickname`\n"
+            f"`{prefix}setnick nickname`"
         )
 
         return
-
-    target = None
-    nickname = None
 
     try:
 
@@ -1247,7 +1326,7 @@ async def setnick_prefix(
     manage_nicknames=True
 )
 async def setnick_slash(
-    interaction: discord.Interaction,
+    interaction,
     member: discord.Member,
     nickname: str
 ):
@@ -1349,7 +1428,7 @@ async def purge_prefix(
     manage_messages=True
 )
 async def purge_slash(
-    interaction: discord.Interaction,
+    interaction,
     amount: int
 ):
 
@@ -1418,7 +1497,7 @@ async def prefix_prefix(
     manage_guild=True
 )
 async def prefix_slash(
-    interaction: discord.Interaction,
+    interaction,
     new_prefix: str
 ):
 
@@ -1490,10 +1569,6 @@ def get_manageable_roles(
     return roles
 
 
-# =========================================================
-# SELECT DE ROLES
-# =========================================================
-
 class RoleSelect(discord.ui.Select):
 
     def __init__(
@@ -1527,56 +1602,29 @@ class RoleSelect(discord.ui.Select):
 
     async def callback(
         self,
-        interaction: discord.Interaction
+        interaction
     ):
 
         guild = interaction.guild
-
-        if guild is None:
-
-            await interaction.response.send_message(
-                "❌ Este menú solo funciona en un servidor.",
-                ephemeral=True
-            )
-
-            return
 
         member = guild.get_member(
             self.target_member.id
         )
 
-        if member is None:
-
-            await interaction.response.send_message(
-                "❌ No se encontró al usuario.",
-                ephemeral=True
-            )
-
-            return
-
         role = guild.get_role(
             int(self.values[0])
         )
 
-        if role is None:
+        if member is None or role is None:
 
             await interaction.response.send_message(
-                "❌ Ese rol ya no existe.",
+                "❌ El usuario o rol ya no existe.",
                 ephemeral=True
             )
 
             return
 
         me = guild.me
-
-        if me is None:
-
-            await interaction.response.send_message(
-                "❌ No se encontró al bot.",
-                ephemeral=True
-            )
-
-            return
 
         if role.managed or role.is_default():
 
@@ -1590,8 +1638,7 @@ class RoleSelect(discord.ui.Select):
         if role >= me.top_role:
 
             await interaction.response.send_message(
-                "❌ No puedo administrar ese rol porque "
-                "está al mismo nivel o por encima de mi rol.",
+                "❌ No puedo administrar ese rol.",
                 ephemeral=True
             )
 
@@ -1600,7 +1647,7 @@ class RoleSelect(discord.ui.Select):
         if member == guild.owner:
 
             await interaction.response.send_message(
-                "❌ No puedes modificar al dueño del servidor.",
+                "❌ No puedes modificar al dueño.",
                 ephemeral=True
             )
 
@@ -1609,8 +1656,7 @@ class RoleSelect(discord.ui.Select):
         if member.top_role >= me.top_role:
 
             await interaction.response.send_message(
-                "❌ No puedo modificar a este usuario "
-                "porque su rol está al mismo nivel o por encima del mío.",
+                "❌ El usuario tiene un rol demasiado alto.",
                 ephemeral=True
             )
 
@@ -1624,12 +1670,12 @@ class RoleSelect(discord.ui.Select):
 
                 await member.remove_roles(
                     old_role,
-                    reason="Cambio de rol mediante promote/demote"
+                    reason="Cambio de rol"
                 )
 
             await member.add_roles(
                 role,
-                reason="Cambio de rol mediante promote/demote"
+                reason="Cambio de rol"
             )
 
             action = (
@@ -1660,13 +1706,6 @@ class RoleSelect(discord.ui.Select):
                 ephemeral=True
             )
 
-        except Exception as e:
-
-            await interaction.response.send_message(
-                f"❌ Error: {e}",
-                ephemeral=True
-            )
-
 
 class RoleView(discord.ui.View):
 
@@ -1688,11 +1727,6 @@ class RoleView(discord.ui.View):
                 promote
             )
         )
-
-    async def on_timeout(self):
-
-        for item in self.children:
-            item.disabled = True
 
 
 # =========================================================
@@ -1719,13 +1753,13 @@ async def promote_prefix(
     roles = get_manageable_roles(
         ctx.guild,
         member,
-        promote=True
+        True
     )
 
     if not roles:
 
         await ctx.send(
-            "❌ No hay roles disponibles para ascender a este usuario."
+            "❌ No hay roles disponibles para ascender."
         )
 
         return
@@ -1738,21 +1772,19 @@ async def promote_prefix(
         color=discord.Color.green()
     )
 
-    view = RoleView(
-        member,
-        roles,
-        True
-    )
-
     await ctx.send(
         embed=embed,
-        view=view
+        view=RoleView(
+            member,
+            roles,
+            True
+        )
     )
 
 
 @bot.tree.command(
     name="promote",
-    description="Asciende a un usuario a otro rol"
+    description="Asciende a un usuario"
 )
 @app_commands.describe(
     member="Usuario que quieres ascender"
@@ -1761,7 +1793,7 @@ async def promote_prefix(
     manage_roles=True
 )
 async def promote_slash(
-    interaction: discord.Interaction,
+    interaction,
     member: discord.Member
 ):
 
@@ -1777,13 +1809,13 @@ async def promote_slash(
     roles = get_manageable_roles(
         interaction.guild,
         member,
-        promote=True
+        True
     )
 
     if not roles:
 
         await interaction.response.send_message(
-            "❌ No hay roles disponibles para ascender a este usuario.",
+            "❌ No hay roles disponibles para ascender.",
             ephemeral=True
         )
 
@@ -1797,15 +1829,13 @@ async def promote_slash(
         color=discord.Color.green()
     )
 
-    view = RoleView(
-        member,
-        roles,
-        True
-    )
-
     await interaction.response.send_message(
         embed=embed,
-        view=view
+        view=RoleView(
+            member,
+            roles,
+            True
+        )
     )
 
 
@@ -1833,13 +1863,13 @@ async def demote_prefix(
     roles = get_manageable_roles(
         ctx.guild,
         member,
-        promote=False
+        False
     )
 
     if not roles:
 
         await ctx.send(
-            "❌ No hay roles disponibles para descender a este usuario."
+            "❌ No hay roles disponibles para descender."
         )
 
         return
@@ -1852,21 +1882,19 @@ async def demote_prefix(
         color=discord.Color.orange()
     )
 
-    view = RoleView(
-        member,
-        roles,
-        False
-    )
-
     await ctx.send(
         embed=embed,
-        view=view
+        view=RoleView(
+            member,
+            roles,
+            False
+        )
     )
 
 
 @bot.tree.command(
     name="demote",
-    description="Desciende a un usuario a otro rol"
+    description="Desciende a un usuario"
 )
 @app_commands.describe(
     member="Usuario que quieres descender"
@@ -1875,7 +1903,7 @@ async def demote_prefix(
     manage_roles=True
 )
 async def demote_slash(
-    interaction: discord.Interaction,
+    interaction,
     member: discord.Member
 ):
 
@@ -1891,13 +1919,13 @@ async def demote_slash(
     roles = get_manageable_roles(
         interaction.guild,
         member,
-        promote=False
+        False
     )
 
     if not roles:
 
         await interaction.response.send_message(
-            "❌ No hay roles disponibles para descender a este usuario.",
+            "❌ No hay roles disponibles para descender.",
             ephemeral=True
         )
 
@@ -1911,25 +1939,23 @@ async def demote_slash(
         color=discord.Color.orange()
     )
 
-    view = RoleView(
-        member,
-        roles,
-        False
-    )
-
     await interaction.response.send_message(
         embed=embed,
-        view=view
+        view=RoleView(
+            member,
+            roles,
+            False
+        )
     )
 
 
 # =========================================================
-# ROLE GROUP
+# /ROLE
 # =========================================================
 
 role_group = app_commands.Group(
     name="role",
-    description="Gestiona los roles de los usuarios"
+    description="Gestiona los roles"
 )
 
 
@@ -1939,13 +1965,13 @@ role_group = app_commands.Group(
 )
 @app_commands.describe(
     member="Usuario",
-    role="Rol que quieres añadir"
+    role="Rol"
 )
 @app_commands.checks.has_permissions(
     manage_roles=True
 )
 async def role_add_slash(
-    interaction: discord.Interaction,
+    interaction,
     member: discord.Member,
     role: discord.Role
 ):
@@ -2013,13 +2039,13 @@ async def role_add_slash(
 )
 @app_commands.describe(
     member="Usuario",
-    role="Rol que quieres quitar"
+    role="Rol"
 )
 @app_commands.checks.has_permissions(
     manage_roles=True
 )
 async def role_remove_slash(
-    interaction: discord.Interaction,
+    interaction,
     member: discord.Member,
     role: discord.Role
 ):
@@ -2078,7 +2104,7 @@ bot.tree.add_command(
 
 
 # =========================================================
-# PREFIX ROLE
+# ?ROLE
 # =========================================================
 
 @bot.group(
@@ -2277,7 +2303,7 @@ async def on_command_error(
 
 @bot.tree.error
 async def on_app_command_error(
-    interaction: discord.Interaction,
+    interaction,
     error
 ):
 
