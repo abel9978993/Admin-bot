@@ -42,23 +42,18 @@ AFK_DB = "afk.db"
 # ============================================================
 
 def init_prefix_db():
-
     with sqlite3.connect(PREFIX_DB) as conn:
-
         conn.execute("""
             CREATE TABLE IF NOT EXISTS prefixes (
                 guild_id INTEGER PRIMARY KEY,
                 prefix TEXT NOT NULL
             )
         """)
-
         conn.commit()
 
 
 def get_prefix(guild_id):
-
     with sqlite3.connect(PREFIX_DB) as conn:
-
         row = conn.execute(
             "SELECT prefix FROM prefixes WHERE guild_id = ?",
             (guild_id,)
@@ -68,28 +63,17 @@ def get_prefix(guild_id):
 
 
 def set_prefix(guild_id, prefix):
-
     with sqlite3.connect(PREFIX_DB) as conn:
-
         conn.execute("""
-            INSERT INTO prefixes (
-                guild_id,
-                prefix
-            )
+            INSERT INTO prefixes (guild_id, prefix)
             VALUES (?, ?)
-
             ON CONFLICT(guild_id)
             DO UPDATE SET prefix = excluded.prefix
-        """, (
-            guild_id,
-            prefix
-        ))
-
+        """, (guild_id, prefix))
         conn.commit()
 
 
 def get_bot_prefix(bot, message):
-
     if message.guild is None:
         return "?"
 
@@ -152,198 +136,312 @@ TRANSLATIONS = {
         "no_reason": "❌ You must provide a reason.",
         "afk_set": "💤 **AFK set**",
         "reason": "Reason",
-        "user_afk": "💤 User is AFK",
+
+        "user_afk": "💤 User AFK",
+
         "is_afk": "**{name}** is currently AFK.",
+
         "leave_message": "Leave a message",
+
         "message_saved": (
-            "✅ Your message will be sent to them "
-            "when they come back."
+            "✅ Your message will be sent to them when they come back."
         ),
+
         "not_afk": "❌ This user is no longer AFK.",
-        "back": "👋 {user} is no longer AFK.",
-        "messages_while_afk": "💬 Messages while you were AFK",
-        "messages_description": (
-            "Here are the messages people left "
-            "for you while you were AFK."
+
+        "back": "👋 {username} is no longer AFK.",
+
+        "messages_while_afk": (
+            "💬 Messages while you were AFK"
         ),
+
+        "messages_description": (
+            "Here are the messages people left for you while you were AFK."
+        ),
+
         "from_user": "💬 From {name}",
+
         "member_count": (
             "👥 **{server}** has **{count:,}** members."
         ),
+
         "no_permission": (
             "❌ You don't have permission to use this command."
         ),
-        "missing_args": "❌ You're missing required arguments.",
-        "invalid_argument": "❌ The argument is invalid.",
-        "not_server": "❌ This command can only be used in a server.",
+
+        "missing_args": (
+            "❌ You're missing required arguments."
+        ),
+
+        "invalid_argument": (
+            "❌ The argument is invalid."
+        ),
+
+        "not_server": (
+            "❌ This command can only be used in a server."
+        ),
+
         "nickname_changed": (
             "✅ Nickname of **{user}** changed to **{nickname}**."
         ),
+
         "nickname_required": (
             "❌ You must provide a new nickname."
         ),
+
         "nickname_too_long": (
             "❌ The nickname cannot be longer than 32 characters."
         ),
+
         "cannot_owner_nick": (
             "❌ You cannot change the server owner's nickname."
         ),
+
         "role_hierarchy_nick": (
             "❌ I cannot change that user's nickname because "
             "their role is higher than or equal to mine."
         ),
+
         "no_nick_permission": (
             "❌ You don't have permission to change other users' nicknames."
         ),
+
         "cannot_nick": (
             "❌ I don't have permission to change that nickname."
         ),
+
         "purge_range": (
             "❌ The number must be between 1 and 100."
         ),
+
         "purged": (
             "🧹 **{count}** messages were deleted."
         ),
+
         "prefix_too_long": (
             "❌ The prefix cannot be longer than 5 characters."
         ),
+
         "prefix_changed": (
             "✅ Prefix changed to `{prefix}`."
         ),
-        "stats_disabled": "🛑 Message counting is disabled",
+
+        "stats_disabled": (
+            "🛑 Message counting disabled"
+        ),
+
         "stats_disabled_desc": (
             "Message counting is not enabled in this server.\n\n"
-            "Message statistics are unavailable while this option "
-            "is disabled.\n\n"
+            "Message statistics are unavailable while this option is disabled.\n\n"
             "An administrator can enable it with:\n"
             "`{prefix}aenable`\n"
             "or `/aenable`"
         ),
+
         "today": "📅 Today",
         "week": "📆 This week",
         "month": "🗓️ This month",
         "total": "📈 Total",
-        "stats_title": "📊 Message Stats — {name}",
+
+        "stats_title": (
+            "📊 Message Stats — {name}"
+        ),
+
         "invalid_period": (
             "❌ Invalid period.\n"
             "Use: `today`, `week`, `month` or `total`."
         ),
+
         "negative_amount": (
             "❌ The amount cannot be negative."
         ),
+
         "stats_set": (
             "✅ Your {period} messages have been set to **{amount:,}**."
         ),
+
         "count_enabled": (
             "✅ **Message counting enabled.**\n"
             "New messages will be counted again."
         ),
+
         "count_disabled": (
             "🛑 **Message counting disabled.**\n"
             "New messages will no longer be counted."
         ),
-        "no_roles": "❌ There are no available roles.",
+
+        "no_roles": (
+            "❌ There are no available roles."
+        ),
+
         "select_promote": (
             "⬆️ Select the new role for {user}."
         ),
+
         "select_demote": (
             "⬇️ Select the new role for {user}."
         ),
-        "promote_placeholder": "Select a role to promote",
-        "demote_placeholder": "Select a role to demote",
-        "menu_not_you": "❌ This menu isn't for you.",
+
+        "menu_not_you": (
+            "❌ This menu isn't for you."
+        ),
+
         "role_updated": (
             "✅ {user} now has the {role} role."
         ),
+
         "cannot_modify_owner": (
             "❌ You cannot modify the server owner."
         ),
+
         "cannot_self_role": (
             "❌ You cannot use this command on yourself."
         ),
+
         "role_no_permission": (
             "❌ I don't have permission to manage that role."
         ),
+
         "role_added": (
             "✅ {role} was added to {user}."
         ),
+
         "role_removed": (
             "✅ {role} was removed from {user}."
         ),
+
         "cannot_manage_role": (
             "❌ You cannot manage that role."
         ),
+
         "role_above_bot": (
             "❌ That role is higher than my role."
         ),
-        "old_commands_cleaned": "🧹 Old commands removed",
-        "sync_error": "❌ Error syncing commands: {error}",
-        "generic_error": "❌ An error occurred."
+
+        "generic_error": (
+            "❌ An error occurred."
+        )
     },
 
     "es": {
 
-        "no_reason": "❌ Tienes que poner un motivo.",
-        "afk_set": "💤 **AFK activado**",
-        "reason": "Motivo",
-        "user_afk": "💤 Usuario AFK",
-        "is_afk": "**{name}** está actualmente AFK.",
-        "leave_message": "Dejar un mensaje",
+        "no_reason": (
+            "❌ Tienes que poner un motivo."
+        ),
+
+        "afk_set": (
+            "💤 **AFK activado**"
+        ),
+
+        "reason": (
+            "Motivo"
+        ),
+
+        "user_afk": (
+            "💤 Usuario AFK"
+        ),
+
+        "is_afk": (
+            "**{name}** está actualmente AFK."
+        ),
+
+        "leave_message": (
+            "Dejar un mensaje"
+        ),
+
         "message_saved": (
             "✅ Tu mensaje será enviado cuando vuelva."
         ),
-        "not_afk": "❌ Esta persona ya no está AFK.",
-        "back": "👋 {user} ya no está AFK.",
-        "messages_while_afk": "💬 Mensajes mientras estabas AFK",
-        "messages_description": (
-            "Estos son los mensajes que te dejaron "
-            "mientras estabas AFK."
+
+        "not_afk": (
+            "❌ Esta persona ya no está AFK."
         ),
-        "from_user": "💬 De {name}",
+
+        "back": (
+            "👋 {username} ya no está AFK."
+        ),
+
+        "messages_while_afk": (
+            "💬 Mensajes mientras estabas AFK"
+        ),
+
+        "messages_description": (
+            "Estos son los mensajes que te dejaron mientras estabas AFK."
+        ),
+
+        "from_user": (
+            "💬 De {name}"
+        ),
+
         "member_count": (
             "👥 **{server}** tiene **{count:,}** miembros."
         ),
+
         "no_permission": (
             "❌ No tienes permisos para usar este comando."
         ),
-        "missing_args": "❌ Faltan argumentos.",
-        "invalid_argument": "❌ El argumento no es válido.",
-        "not_server": "❌ Este comando solo funciona en servidores.",
+
+        "missing_args": (
+            "❌ Faltan argumentos."
+        ),
+
+        "invalid_argument": (
+            "❌ El argumento no es válido."
+        ),
+
+        "not_server": (
+            "❌ Este comando solo funciona en servidores."
+        ),
+
         "nickname_changed": (
             "✅ El nickname de **{user}** cambió a **{nickname}**."
         ),
+
         "nickname_required": (
             "❌ Tienes que poner el nuevo nickname."
         ),
+
         "nickname_too_long": (
             "❌ El nickname no puede tener más de 32 caracteres."
         ),
+
         "cannot_owner_nick": (
             "❌ No puedes cambiar el nickname del dueño del servidor."
         ),
+
         "role_hierarchy_nick": (
             "❌ No puedo cambiar el nickname porque su rol "
             "está por encima o al mismo nivel que el mío."
         ),
+
         "no_nick_permission": (
             "❌ No tienes permiso para cambiar nicknames de otros usuarios."
         ),
+
         "cannot_nick": (
             "❌ No tengo permisos para cambiar ese nickname."
         ),
+
         "purge_range": (
             "❌ El número debe estar entre 1 y 100."
         ),
+
         "purged": (
             "🧹 Se eliminaron **{count}** mensajes."
         ),
+
         "prefix_too_long": (
             "❌ El prefix no puede tener más de 5 caracteres."
         ),
+
         "prefix_changed": (
             "✅ Prefix cambiado a `{prefix}`."
         ),
-        "stats_disabled": "🛑 Conteo de mensajes desactivado",
+
+        "stats_disabled": (
+            "🛑 Conteo de mensajes desactivado"
+        ),
+
         "stats_disabled_desc": (
             "El conteo de mensajes no está activado en este servidor.\n\n"
             "Las estadísticas no están disponibles mientras esté desactivado.\n\n"
@@ -351,74 +449,102 @@ TRANSLATIONS = {
             "`{prefix}aenable`\n"
             "o `/aenable`"
         ),
-        "today": "📅 Hoy",
-        "week": "📆 Esta semana",
-        "month": "🗓️ Este mes",
-        "total": "📈 Total",
-        "stats_title": "📊 Estadísticas — {name}",
+
+        "today": (
+            "📅 Hoy"
+        ),
+
+        "week": (
+            "📆 Esta semana"
+        ),
+
+        "month": (
+            "🗓️ Este mes"
+        ),
+
+        "total": (
+            "📈 Total"
+        ),
+
+        "stats_title": (
+            "📊 Estadísticas — {name}"
+        ),
+
         "invalid_period": (
             "❌ Periodo inválido.\n"
             "Usa: `hoy`, `semana`, `mes` o `total`."
         ),
+
         "negative_amount": (
             "❌ La cantidad no puede ser negativa."
         ),
+
         "stats_set": (
             "✅ Tus mensajes de {period} se han establecido en **{amount:,}**."
         ),
+
         "count_enabled": (
             "✅ **Conteo de mensajes activado.**\n"
             "Los nuevos mensajes volverán a contarse."
         ),
+
         "count_disabled": (
             "🛑 **Conteo de mensajes desactivado.**\n"
             "Los nuevos mensajes ya no serán contados."
         ),
-        "no_roles": "❌ No hay roles disponibles.",
+
+        "no_roles": (
+            "❌ No hay roles disponibles."
+        ),
+
         "select_promote": (
             "⬆️ Selecciona el nuevo rol para {user}."
         ),
+
         "select_demote": (
             "⬇️ Selecciona el nuevo rol para {user}."
         ),
-        "promote_placeholder": "Selecciona un rol para ascender",
-        "demote_placeholder": "Selecciona un rol para descender",
-        "menu_not_you": "❌ Este menú no es para ti.",
+
+        "menu_not_you": (
+            "❌ Este menú no es para ti."
+        ),
+
         "role_updated": (
             "✅ {user} ahora tiene el rol {role}."
         ),
+
         "cannot_modify_owner": (
             "❌ No puedes modificar al dueño del servidor."
         ),
+
         "cannot_self_role": (
             "❌ No puedes usar este comando contigo mismo."
         ),
+
         "role_no_permission": (
             "❌ No tengo permisos para gestionar ese rol."
         ),
+
         "role_added": (
             "✅ Se añadió {role} a {user}."
         ),
+
         "role_removed": (
             "✅ Se quitó {role} de {user}."
         ),
+
         "cannot_manage_role": (
             "❌ No puedes gestionar ese rol."
         ),
+
         "role_above_bot": (
             "❌ Ese rol está por encima de mi rol."
         ),
-        "old_commands_cleaned": "🧹 Comandos antiguos eliminados",
-        "sync_error": "❌ Error sincronizando comandos: {error}",
-        "generic_error": "❌ Ha ocurrido un error."
-    },
 
-    "fr": {},
-    "de": {},
-    "it": {},
-    "pt": {},
-    "nl": {},
-    "pl": {}
+        "generic_error": (
+            "❌ Ha ocurrido un error."
+        )
+    }
 }
 
 
@@ -427,9 +553,11 @@ def t(user, key, **kwargs):
     language = get_user_language(user)
 
     translations = TRANSLATIONS.get(
-        language,
-        TRANSLATIONS["en"]
+        language
     )
+
+    if not translations:
+        translations = TRANSLATIONS["en"]
 
     text = translations.get(
         key,
@@ -501,7 +629,10 @@ def is_message_tracking_enabled(guild_id):
     return bool(row[0])
 
 
-def set_message_tracking(guild_id, enabled):
+def set_message_tracking(
+    guild_id,
+    enabled
+):
 
     with sqlite3.connect(MESSAGES_DB) as conn:
 
@@ -960,7 +1091,6 @@ bot = MyBot(
     intents=intents
 )
 
-
 commands_cleaned = False
 
 
@@ -974,15 +1104,19 @@ async def on_ready():
     global commands_cleaned
 
     print("=" * 50)
+
     print(
         f"✅ Bot conectado como {bot.user}"
     )
+
     print(
         f"🆔 ID: {bot.user.id}"
     )
+
     print(
         f"🌐 Servidores: {len(bot.guilds)}"
     )
+
     print("=" * 50)
 
     if not commands_cleaned:
@@ -1141,10 +1275,6 @@ async def deactivate_afk(
 
     if pending:
 
-        language = get_user_language(
-            member
-        )
-
         embed = discord.Embed(
             title=t(
                 member,
@@ -1210,8 +1340,7 @@ class AFKMessageModal(
     def __init__(
         self,
         afk_user_id,
-        guild_id,
-        sender
+        guild_id
     ):
 
         super().__init__(
@@ -1220,13 +1349,10 @@ class AFKMessageModal(
 
         self.afk_user_id = afk_user_id
         self.guild_id = guild_id
-        self.sender = sender
 
         self.message_input = discord.ui.TextInput(
             label="Your message",
-            placeholder=(
-                "Write the message they should receive..."
-            ),
+            placeholder="Write your message...",
             style=discord.TextStyle.paragraph,
             required=True,
             max_length=1000
@@ -1238,7 +1364,7 @@ class AFKMessageModal(
 
     async def on_submit(
         self,
-        interaction
+        interaction: discord.Interaction
     ):
 
         save_afk_message(
@@ -1285,8 +1411,8 @@ class AFKMessageView(
     )
     async def leave_message(
         self,
-        interaction,
-        button
+        interaction: discord.Interaction,
+        button: discord.ui.Button
     ):
 
         data = get_afk(
@@ -1309,8 +1435,7 @@ class AFKMessageView(
         await interaction.response.send_modal(
             AFKMessageModal(
                 self.afk_user_id,
-                self.guild_id,
-                interaction.user
+                self.guild_id
             )
         )
 
@@ -1373,7 +1498,7 @@ async def afk_prefix(
     reason="Why are you AFK?"
 )
 async def afk_slash(
-    interaction,
+    interaction: discord.Interaction,
     reason: str
 ):
 
@@ -1440,7 +1565,7 @@ async def membercount_prefix(ctx):
     description="Show the server member count"
 )
 async def membercount_slash(
-    interaction
+    interaction: discord.Interaction
 ):
 
     await interaction.response.send_message(
@@ -1490,9 +1615,9 @@ async def ban_prefix(
     ban_members=True
 )
 async def ban_slash(
-    interaction,
+    interaction: discord.Interaction,
     member: discord.Member,
-    reason="No reason provided"
+    reason: str = "No reason provided"
 ):
 
     await member.ban(
@@ -1541,9 +1666,9 @@ async def kick_prefix(
     kick_members=True
 )
 async def kick_slash(
-    interaction,
+    interaction: discord.Interaction,
     member: discord.Member,
-    reason="No reason provided"
+    reason: str = "No reason provided"
 ):
 
     await member.kick(
@@ -1600,7 +1725,7 @@ async def unban_prefix(
     ban_members=True
 )
 async def unban_slash(
-    interaction,
+    interaction: discord.Interaction,
     user_id: str
 ):
 
@@ -1641,14 +1766,16 @@ async def execute_setnick(
 
     guild = interaction_or_ctx.guild
 
-    actor = (
-        interaction_or_ctx.author
-        if isinstance(
-            interaction_or_ctx,
-            commands.Context
-        )
-        else interaction_or_ctx.user
-    )
+    if isinstance(
+        interaction_or_ctx,
+        commands.Context
+    ):
+
+        actor = interaction_or_ctx.author
+
+    else:
+
+        actor = interaction_or_ctx.user
 
     if target.id != actor.id:
 
@@ -1797,9 +1924,6 @@ async def execute_setnick(
     name="setnick",
     aliases=["nick"]
 )
-@commands.has_permissions(
-    manage_nicknames=True
-)
 async def setnick_prefix(
     ctx,
     *args
@@ -1814,34 +1938,41 @@ async def setnick_prefix(
 
         return
 
-    try:
-
-        target = await commands.MemberConverter().convert(
-            ctx,
-            args[0]
-        )
-
-        nickname = " ".join(
-            args[1:]
-        ).strip()
-
-        if not nickname:
-
-            await ctx.send(
-                t(
-                    ctx.author,
-                    "nickname_required"
-                )
-            )
-
-            return
-
-    except commands.BadArgument:
+    if len(args) == 1:
 
         target = ctx.author
-        nickname = " ".join(
-            args
-        ).strip()
+        nickname = args[0]
+
+    else:
+
+        try:
+
+            target = await commands.MemberConverter().convert(
+                ctx,
+                args[0]
+            )
+
+            nickname = " ".join(
+                args[1:]
+            ).strip()
+
+        except commands.BadArgument:
+
+            target = ctx.author
+            nickname = " ".join(
+                args
+            ).strip()
+
+    if not nickname:
+
+        await ctx.send(
+            t(
+                ctx.author,
+                "nickname_required"
+            )
+        )
+
+        return
 
     await execute_setnick(
         ctx,
@@ -1858,11 +1989,8 @@ async def setnick_prefix(
     member="Member",
     nickname="New nickname"
 )
-@app_commands.checks.has_permissions(
-    manage_nicknames=True
-)
 async def setnick_slash(
-    interaction,
+    interaction: discord.Interaction,
     member: discord.Member,
     nickname: str
 ):
@@ -1929,7 +2057,7 @@ async def purge_prefix(
     manage_messages=True
 )
 async def purge_slash(
-    interaction,
+    interaction: discord.Interaction,
     amount: int
 ):
 
@@ -1945,7 +2073,7 @@ async def purge_slash(
 
         return
 
-    await interaction.channel.purge(
+    deleted = await interaction.channel.purge(
         limit=amount
     )
 
@@ -1953,7 +2081,7 @@ async def purge_slash(
         t(
             interaction.user,
             "purged",
-            count=amount
+            count=len(deleted)
         ),
         ephemeral=True
     )
@@ -2008,7 +2136,7 @@ async def prefix_prefix(
     manage_guild=True
 )
 async def prefix_slash(
-    interaction,
+    interaction: discord.Interaction,
     new_prefix: str
 ):
 
@@ -2171,8 +2299,8 @@ async def am_prefix(
     member="User to check"
 )
 async def am_slash(
-    interaction,
-    member: discord.Member = None
+    interaction: discord.Interaction,
+    member: discord.Member | None = None
 ):
 
     if not is_message_tracking_enabled(
@@ -2316,7 +2444,7 @@ async def aset_prefix(
     administrator=True
 )
 async def aset_slash(
-    interaction,
+    interaction: discord.Interaction,
     period: app_commands.Choice[str],
     amount: int
 ):
@@ -2381,7 +2509,7 @@ async def aenable_prefix(ctx):
     administrator=True
 )
 async def aenable_slash(
-    interaction
+    interaction: discord.Interaction
 ):
 
     set_message_tracking(
@@ -2428,7 +2556,7 @@ async def adesable_prefix(ctx):
     administrator=True
 )
 async def adesable_slash(
-    interaction
+    interaction: discord.Interaction
 ):
 
     set_message_tracking(
@@ -2539,7 +2667,7 @@ class RoleSelect(
 
     async def callback(
         self,
-        interaction
+        interaction: discord.Interaction
     ):
 
         if interaction.user.id != self.requester.id:
@@ -2761,7 +2889,7 @@ async def promote_prefix(
     manage_roles=True
 )
 async def promote_slash(
-    interaction,
+    interaction: discord.Interaction,
     member: discord.Member
 ):
 
@@ -2826,7 +2954,7 @@ async def demote_prefix(
     manage_roles=True
 )
 async def demote_slash(
-    interaction,
+    interaction: discord.Interaction,
     member: discord.Member
 ):
 
@@ -2859,7 +2987,7 @@ role_group = app_commands.Group(
     manage_roles=True
 )
 async def role_add(
-    interaction,
+    interaction: discord.Interaction,
     member: discord.Member,
     role: discord.Role
 ):
@@ -2926,7 +3054,7 @@ async def role_add(
     manage_roles=True
 )
 async def role_remove(
-    interaction,
+    interaction: discord.Interaction,
     member: discord.Member,
     role: discord.Role
 ):
@@ -3098,7 +3226,7 @@ async def on_message(message):
                         t(
                             message.author,
                             "back",
-                            user=message.author.mention
+                            username=message.author.mention
                         )
                     )
 
@@ -3106,9 +3234,11 @@ async def on_message(message):
                         delay=1
                     )
 
-                except discord.Forbidden:
+                except Exception as e:
 
-                    pass
+                    print(
+                        f"⚠️ Error enviando mensaje de vuelta AFK: {e}"
+                    )
 
     # ========================================================
     # MESSAGE COUNTING
@@ -3125,7 +3255,7 @@ async def on_message(message):
         )
 
     # ========================================================
-    # PREFIX COMMANDS
+    # PROCESS COMMANDS
     # ========================================================
 
     await bot.process_commands(
@@ -3147,6 +3277,7 @@ async def on_command_error(
         error,
         commands.CommandNotFound
     ):
+
         return
 
     if isinstance(
@@ -3272,7 +3403,7 @@ init_afk_db()
 
 
 # ============================================================
-# START
+# START BOT
 # ============================================================
 
 print("🚀 Starting bot...")
