@@ -18,6 +18,9 @@ if not TOKEN:
         "❌ MEMBERCOUNT_TOKEN no está configurado."
     )
 
+AFK_TIMEOUT_SECONDS = 60 * 60
+MAX_WARNINGS = 3
+
 
 # =========================================================
 # INTENTS
@@ -86,7 +89,6 @@ TRANSLATIONS = {
         "no_permission": "❌ You don't have permission to use this command.",
         "user_not_found": "❌ User not found.",
         "cannot_self": "❌ You cannot use this command on yourself.",
-        "cannot_bot": "❌ You cannot use this command on a bot.",
 
         "banned": "🔨 {user} has been banned.",
         "kicked": "👢 {user} has been kicked.",
@@ -106,7 +108,6 @@ TRANSLATIONS = {
         "week": "This week",
         "month": "This month",
         "total": "Total",
-
         "stats_set": "✅ {period} messages for {member} set to **{amount}**.",
         "stats_enabled": "✅ Message statistics have been enabled.",
         "stats_disabled_success": "✅ Message statistics have been disabled.",
@@ -124,12 +125,19 @@ TRANSLATIONS = {
         "afk_message_saved": "💌 Your message has been saved and will be delivered when {member} returns.",
         "afk_dm": "💌 **AFK message from {sender}** in **{server}**:\n{message}",
 
+        "warn_added": "⚠️ {member} has received a warning.\n**Reason:** {reason}\n**Warnings:** {count}/{max}",
+        "warn_timeout": "⏱️ {member} has reached **{max} warnings** and has been timed out for **1 hour**.",
+        "warnings_title": "⚠️ Warnings",
+        "warnings_for": "Warnings for {member}",
+        "no_warnings": "✅ {member} has no warnings.",
+        "warning_line": "**#{number}** — {reason}\nBy: {moderator}\n{date}",
+        "warnings_cleared": "🧹 All warnings for {member} have been cleared.",
+        "warning_invalid": "❌ The warning number is invalid.",
+
         "leave_message": "Leave a message",
         "message_modal_title": "Leave a message",
         "message_modal_label": "Your message",
-        "message_modal_placeholder": "Write your message...",
-
-        "reason_default": "No reason provided",
+        "message_modal_placeholder": "Write your message..."
     },
 
     "es": {
@@ -139,7 +147,6 @@ TRANSLATIONS = {
         "no_permission": "❌ No tienes permisos para usar este comando.",
         "user_not_found": "❌ Usuario no encontrado.",
         "cannot_self": "❌ No puedes usar este comando contigo mismo.",
-        "cannot_bot": "❌ No puedes usar este comando con un bot.",
 
         "banned": "🔨 {user} ha sido baneado.",
         "kicked": "👢 {user} ha sido expulsado.",
@@ -159,7 +166,6 @@ TRANSLATIONS = {
         "week": "Esta semana",
         "month": "Este mes",
         "total": "Total",
-
         "stats_set": "✅ Los mensajes de {period} de {member} se han establecido en **{amount}**.",
         "stats_enabled": "✅ Las estadísticas de mensajes han sido activadas.",
         "stats_disabled_success": "✅ Las estadísticas de mensajes han sido desactivadas.",
@@ -177,23 +183,30 @@ TRANSLATIONS = {
         "afk_message_saved": "💌 Tu mensaje se ha guardado y será enviado cuando {member} vuelva.",
         "afk_dm": "💌 **Mensaje AFK de {sender}** en **{server}**:\n{message}",
 
+        "warn_added": "⚠️ {member} ha recibido una advertencia.\n**Motivo:** {reason}\n**Warnings:** {count}/{max}",
+        "warn_timeout": "⏱️ {member} ha llegado a **{max} warnings** y ha recibido un timeout de **1 hora**.",
+        "warnings_title": "⚠️ Advertencias",
+        "warnings_for": "Advertencias de {member}",
+        "no_warnings": "✅ {member} no tiene advertencias.",
+        "warning_line": "**#{number}** — {reason}\nPor: {moderator}\n{date}",
+        "warnings_cleared": "🧹 Se han eliminado todas las advertencias de {member}.",
+        "warning_invalid": "❌ El número de advertencia no es válido.",
+
         "leave_message": "Dejar un mensaje",
         "message_modal_title": "Dejar un mensaje",
         "message_modal_label": "Tu mensaje",
-        "message_modal_placeholder": "Escribe tu mensaje...",
-
-        "reason_default": "Sin motivo",
+        "message_modal_placeholder": "Escribe tu mensaje..."
     }
 }
 
 
 def get_language(user):
-    language = getattr(user, "locale", None)
+    locale = getattr(user, "locale", None)
 
-    if language:
-        language = str(language).lower()
+    if locale:
+        locale = str(locale).lower()
 
-        if language.startswith("es"):
+        if locale.startswith("es"):
             return "es"
 
     return "en"
@@ -202,7 +215,10 @@ def get_language(user):
 def t(user, key, **kwargs):
     language = get_language(user)
 
-    text = TRANSLATIONS.get(language, TRANSLATIONS["en"]).get(
+    text = TRANSLATIONS.get(
+        language,
+        TRANSLATIONS["en"]
+    ).get(
         key,
         TRANSLATIONS["en"].get(key, key)
     )
@@ -267,12 +283,16 @@ def stats_enabled(guild_id):
 def set_stats_enabled(guild_id, enabled):
 
     with sqlite3.connect(MESSAGES_DB) as conn:
+
         conn.execute("""
             INSERT INTO message_settings (guild_id, enabled)
             VALUES (?, ?)
             ON CONFLICT(guild_id)
             DO UPDATE SET enabled = excluded.enabled
-        """, (guild_id, 1 if enabled else 0))
+        """, (
+            guild_id,
+            1 if enabled else 0
+        ))
 
         conn.commit()
 
@@ -285,6 +305,7 @@ def record_message(guild_id, user_id, channel_id):
     now = datetime.now(timezone.utc).isoformat()
 
     with sqlite3.connect(MESSAGES_DB) as conn:
+
         conn.execute("""
             INSERT INTO messages
             (guild_id, user_id, channel_id, created_at)
@@ -304,6 +325,7 @@ def get_period_start(period):
     now = datetime.now(timezone.utc)
 
     if period == "today":
+
         return datetime(
             now.year,
             now.month,
@@ -312,7 +334,10 @@ def get_period_start(period):
         )
 
     if period == "week":
-        start = now - timedelta(days=now.weekday())
+
+        start = now - timedelta(
+            days=now.weekday()
+        )
 
         return datetime(
             start.year,
@@ -322,6 +347,7 @@ def get_period_start(period):
         )
 
     if period == "month":
+
         return datetime(
             now.year,
             now.month,
@@ -332,7 +358,11 @@ def get_period_start(period):
     return None
 
 
-def get_real_count(guild_id, user_id, period):
+def get_real_count(
+    guild_id,
+    user_id,
+    period
+):
 
     if period == "total":
 
@@ -350,7 +380,9 @@ def get_real_count(guild_id, user_id, period):
 
     else:
 
-        start = get_period_start(period)
+        start = get_period_start(
+            period
+        )
 
         query = """
             SELECT COUNT(*)
@@ -367,12 +399,20 @@ def get_real_count(guild_id, user_id, period):
         )
 
     with sqlite3.connect(MESSAGES_DB) as conn:
-        row = conn.execute(query, params).fetchone()
+
+        row = conn.execute(
+            query,
+            params
+        ).fetchone()
 
     return row[0] if row else 0
 
 
-def get_adjustment(guild_id, user_id, period):
+def get_adjustment(
+    guild_id,
+    user_id,
+    period
+):
 
     with sqlite3.connect(MESSAGES_DB) as conn:
 
@@ -395,7 +435,9 @@ def get_adjustment(guild_id, user_id, period):
 
     if period != "total":
 
-        current_start = get_period_start(period).isoformat()
+        current_start = get_period_start(
+            period
+        ).isoformat()
 
         if saved_start != current_start:
             return 0
@@ -406,10 +448,17 @@ def get_adjustment(guild_id, user_id, period):
         period
     )
 
-    return amount + (current_real - reference_real)
+    return amount + (
+        current_real - reference_real
+    )
 
 
-def set_adjustment(guild_id, user_id, period, amount):
+def set_adjustment(
+    guild_id,
+    user_id,
+    period,
+    amount
+):
 
     real = get_real_count(
         guild_id,
@@ -420,7 +469,10 @@ def set_adjustment(guild_id, user_id, period, amount):
     start = None
 
     if period != "total":
-        start = get_period_start(period).isoformat()
+
+        start = get_period_start(
+            period
+        ).isoformat()
 
     with sqlite3.connect(MESSAGES_DB) as conn:
 
@@ -448,6 +500,130 @@ def set_adjustment(guild_id, user_id, period, amount):
             amount,
             real,
             start
+        ))
+
+        conn.commit()
+
+
+# =========================================================
+# WARNINGS DATABASE
+# =========================================================
+
+WARNINGS_DB = "warnings.db"
+
+with sqlite3.connect(WARNINGS_DB) as conn:
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS warnings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            moderator_id INTEGER NOT NULL,
+            reason TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    """)
+
+    conn.commit()
+
+
+def add_warning(
+    guild_id,
+    user_id,
+    moderator_id,
+    reason
+):
+
+    now = datetime.now(
+        timezone.utc
+    ).isoformat()
+
+    with sqlite3.connect(WARNINGS_DB) as conn:
+
+        cursor = conn.execute("""
+            INSERT INTO warnings
+            (
+                guild_id,
+                user_id,
+                moderator_id,
+                reason,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?)
+        """, (
+            guild_id,
+            user_id,
+            moderator_id,
+            reason,
+            now
+        ))
+
+        warning_id = cursor.lastrowid
+
+        conn.commit()
+
+    return warning_id
+
+
+def get_warning_count(
+    guild_id,
+    user_id
+):
+
+    with sqlite3.connect(WARNINGS_DB) as conn:
+
+        row = conn.execute("""
+            SELECT COUNT(*)
+            FROM warnings
+            WHERE guild_id = ?
+            AND user_id = ?
+        """, (
+            guild_id,
+            user_id
+        )).fetchone()
+
+    return row[0] if row else 0
+
+
+def get_warnings(
+    guild_id,
+    user_id
+):
+
+    with sqlite3.connect(WARNINGS_DB) as conn:
+
+        rows = conn.execute("""
+            SELECT
+                id,
+                moderator_id,
+                reason,
+                created_at
+            FROM warnings
+            WHERE guild_id = ?
+            AND user_id = ?
+            ORDER BY id ASC
+        """, (
+            guild_id,
+            user_id
+        )).fetchall()
+
+    return rows
+
+
+def clear_warnings(
+    guild_id,
+    user_id
+):
+
+    with sqlite3.connect(WARNINGS_DB) as conn:
+
+        conn.execute("""
+            DELETE FROM warnings
+            WHERE guild_id = ?
+            AND user_id = ?
+        """, (
+            guild_id,
+            user_id
         ))
 
         conn.commit()
@@ -485,7 +661,10 @@ with sqlite3.connect(AFK_DB) as conn:
     conn.commit()
 
 
-def get_afk(guild_id, user_id):
+def get_afk(
+    guild_id,
+    user_id
+):
 
     with sqlite3.connect(AFK_DB) as conn:
 
@@ -502,7 +681,12 @@ def get_afk(guild_id, user_id):
     return row
 
 
-def save_afk(guild_id, user_id, reason, original_nick):
+def save_afk(
+    guild_id,
+    user_id,
+    reason,
+    original_nick
+):
 
     with sqlite3.connect(AFK_DB) as conn:
 
@@ -530,7 +714,10 @@ def save_afk(guild_id, user_id, reason, original_nick):
         conn.commit()
 
 
-def delete_afk(guild_id, user_id):
+def delete_afk(
+    guild_id,
+    user_id
+):
 
     with sqlite3.connect(AFK_DB) as conn:
 
@@ -553,7 +740,9 @@ def save_afk_message(
     message
 ):
 
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(
+        timezone.utc
+    ).isoformat()
 
     with sqlite3.connect(AFK_DB) as conn:
 
@@ -578,7 +767,10 @@ def save_afk_message(
         conn.commit()
 
 
-def get_afk_messages(guild_id, user_id):
+def get_afk_messages(
+    guild_id,
+    user_id
+):
 
     with sqlite3.connect(AFK_DB) as conn:
 
@@ -596,7 +788,10 @@ def get_afk_messages(guild_id, user_id):
     return rows
 
 
-def delete_afk_messages(guild_id, user_id):
+def delete_afk_messages(
+    guild_id,
+    user_id
+):
 
     with sqlite3.connect(AFK_DB) as conn:
 
@@ -613,12 +808,16 @@ def delete_afk_messages(guild_id, user_id):
 
 
 # =========================================================
-# AFK MESSAGE BUTTON
+# AFK MODAL
 # =========================================================
 
 class AFKMessageModal(discord.ui.Modal):
 
-    def __init__(self, guild_id, afk_user_id):
+    def __init__(
+        self,
+        guild_id,
+        afk_user_id
+    ):
 
         super().__init__(
             title="Leave a message"
@@ -635,9 +834,14 @@ class AFKMessageModal(discord.ui.Modal):
             max_length=1000
         )
 
-        self.add_item(self.message_input)
+        self.add_item(
+            self.message_input
+        )
 
-    async def on_submit(self, interaction: discord.Interaction):
+    async def on_submit(
+        self,
+        interaction: discord.Interaction
+    ):
 
         save_afk_message(
             self.guild_id,
@@ -646,34 +850,31 @@ class AFKMessageModal(discord.ui.Modal):
             str(self.message_input.value)
         )
 
-        afk_member = interaction.guild.get_member(
+        member = interaction.guild.get_member(
             self.afk_user_id
         )
 
-        if afk_member:
-
-            await interaction.response.send_message(
-                t(
-                    interaction.user,
-                    "afk_message_saved",
-                    member=afk_member.mention
-                ),
-                ephemeral=True
-            )
-
-        else:
-
-            await interaction.response.send_message(
-                "💌 Message saved.",
-                ephemeral=True
-            )
+        await interaction.response.send_message(
+            t(
+                interaction.user,
+                "afk_message_saved",
+                member=member.mention if member else "the user"
+            ),
+            ephemeral=True
+        )
 
 
 class AFKMessageView(discord.ui.View):
 
-    def __init__(self, guild_id, afk_user_id):
+    def __init__(
+        self,
+        guild_id,
+        afk_user_id
+    ):
 
-        super().__init__(timeout=3600)
+        super().__init__(
+            timeout=3600
+        )
 
         self.guild_id = guild_id
         self.afk_user_id = afk_user_id
@@ -697,14 +898,16 @@ class AFKMessageView(discord.ui.View):
 
 
 # =========================================================
-# BOT CLASS
+# BOT
 # =========================================================
 
 class MyBot(commands.Bot):
 
     async def setup_hook(self):
 
-        print("🔄 Sincronizando comandos globales...")
+        print(
+            "🔄 Sincronizando comandos globales..."
+        )
 
         try:
 
@@ -714,7 +917,9 @@ class MyBot(commands.Bot):
                 f"✅ {len(synced)} comandos globales sincronizados."
             )
 
-            print("📋 Comandos disponibles:")
+            print(
+                "📋 Comandos disponibles:"
+            )
 
             for command in synced:
 
@@ -756,7 +961,7 @@ async def on_ready():
 
 
 # =========================================================
-# MEMBER COUNT
+# MEMBERCOUNT
 # =========================================================
 
 @bot.command(name="membercount")
@@ -779,20 +984,12 @@ async def membercount_slash(
     interaction: discord.Interaction
 ):
 
-    embed = discord.Embed(
-        title=t(
-            interaction.user,
-            "membercount_title"
-        ),
-        description=t(
+    await interaction.response.send_message(
+        t(
             interaction.user,
             "membercount_text",
             count=interaction.guild.member_count
         )
-    )
-
-    await interaction.response.send_message(
-        embed=embed
     )
 
 
@@ -801,7 +998,9 @@ async def membercount_slash(
 # =========================================================
 
 @bot.command(name="ban")
-@commands.has_permissions(ban_members=True)
+@commands.has_permissions(
+    ban_members=True
+)
 async def ban_prefix(
     ctx,
     member: discord.Member,
@@ -818,7 +1017,9 @@ async def ban_prefix(
 
     try:
 
-        await member.ban(reason=reason)
+        await member.ban(
+            reason=reason
+        )
 
         await ctx.send(
             t(
@@ -839,7 +1040,9 @@ async def ban_prefix(
     name="ban",
     description="Ban a member"
 )
-@app_commands.checks.has_permissions(ban_members=True)
+@app_commands.checks.has_permissions(
+    ban_members=True
+)
 async def ban_slash(
     interaction: discord.Interaction,
     member: discord.Member,
@@ -849,14 +1052,19 @@ async def ban_slash(
     if member == interaction.user:
 
         await interaction.response.send_message(
-            t(interaction.user, "cannot_self"),
+            t(
+                interaction.user,
+                "cannot_self"
+            ),
             ephemeral=True
         )
         return
 
     try:
 
-        await member.ban(reason=reason)
+        await member.ban(
+            reason=reason
+        )
 
         await interaction.response.send_message(
             t(
@@ -879,7 +1087,9 @@ async def ban_slash(
 # =========================================================
 
 @bot.command(name="kick")
-@commands.has_permissions(kick_members=True)
+@commands.has_permissions(
+    kick_members=True
+)
 async def kick_prefix(
     ctx,
     member: discord.Member,
@@ -896,7 +1106,9 @@ async def kick_prefix(
 
     try:
 
-        await member.kick(reason=reason)
+        await member.kick(
+            reason=reason
+        )
 
         await ctx.send(
             t(
@@ -917,7 +1129,9 @@ async def kick_prefix(
     name="kick",
     description="Kick a member"
 )
-@app_commands.checks.has_permissions(kick_members=True)
+@app_commands.checks.has_permissions(
+    kick_members=True
+)
 async def kick_slash(
     interaction: discord.Interaction,
     member: discord.Member,
@@ -927,14 +1141,19 @@ async def kick_slash(
     if member == interaction.user:
 
         await interaction.response.send_message(
-            t(interaction.user, "cannot_self"),
+            t(
+                interaction.user,
+                "cannot_self"
+            ),
             ephemeral=True
         )
         return
 
     try:
 
-        await member.kick(reason=reason)
+        await member.kick(
+            reason=reason
+        )
 
         await interaction.response.send_message(
             t(
@@ -957,14 +1176,23 @@ async def kick_slash(
 # =========================================================
 
 @bot.command(name="unban")
-@commands.has_permissions(ban_members=True)
-async def unban_prefix(ctx, user_id: int):
+@commands.has_permissions(
+    ban_members=True
+)
+async def unban_prefix(
+    ctx,
+    user_id: int
+):
 
     try:
 
-        user = await bot.fetch_user(user_id)
+        user = await bot.fetch_user(
+            user_id
+        )
 
-        await ctx.guild.unban(user)
+        await ctx.guild.unban(
+            user
+        )
 
         await ctx.send(
             t(
@@ -985,7 +1213,9 @@ async def unban_prefix(ctx, user_id: int):
     name="unban",
     description="Unban a user by ID"
 )
-@app_commands.checks.has_permissions(ban_members=True)
+@app_commands.checks.has_permissions(
+    ban_members=True
+)
 async def unban_slash(
     interaction: discord.Interaction,
     user_id: str
@@ -993,9 +1223,13 @@ async def unban_slash(
 
     try:
 
-        user = await bot.fetch_user(int(user_id))
+        user = await bot.fetch_user(
+            int(user_id)
+        )
 
-        await interaction.guild.unban(user)
+        await interaction.guild.unban(
+            user
+        )
 
         await interaction.response.send_message(
             t(
@@ -1014,11 +1248,13 @@ async def unban_slash(
 
 
 # =========================================================
-# SET NICK
+# SETNICK
 # =========================================================
 
 @bot.command(name="setnick")
-@commands.has_permissions(manage_nicknames=True)
+@commands.has_permissions(
+    manage_nicknames=True
+)
 async def setnick_prefix(
     ctx,
     member: discord.Member,
@@ -1028,7 +1264,9 @@ async def setnick_prefix(
 
     try:
 
-        await member.edit(nick=nickname)
+        await member.edit(
+            nick=nickname
+        )
 
         await ctx.send(
             t(
@@ -1042,7 +1280,10 @@ async def setnick_prefix(
     except Exception:
 
         await ctx.send(
-            t(ctx.author, "nickname_failed")
+            t(
+                ctx.author,
+                "nickname_failed"
+            )
         )
 
 
@@ -1050,7 +1291,9 @@ async def setnick_prefix(
     name="setnick",
     description="Change a member's nickname"
 )
-@app_commands.checks.has_permissions(manage_nicknames=True)
+@app_commands.checks.has_permissions(
+    manage_nicknames=True
+)
 async def setnick_slash(
     interaction: discord.Interaction,
     member: discord.Member,
@@ -1059,7 +1302,9 @@ async def setnick_slash(
 
     try:
 
-        await member.edit(nick=nickname)
+        await member.edit(
+            nick=nickname
+        )
 
         await interaction.response.send_message(
             t(
@@ -1086,7 +1331,9 @@ async def setnick_slash(
 # =========================================================
 
 @bot.command(name="nick")
-@commands.has_permissions(manage_nicknames=True)
+@commands.has_permissions(
+    manage_nicknames=True
+)
 async def nick_prefix(
     ctx,
     member: discord.Member = None,
@@ -1095,7 +1342,6 @@ async def nick_prefix(
 ):
 
     if member is None:
-
         member = ctx.author
 
     if nickname is None:
@@ -1107,7 +1353,9 @@ async def nick_prefix(
 
     try:
 
-        await member.edit(nick=nickname)
+        await member.edit(
+            nick=nickname
+        )
 
         await ctx.send(
             t(
@@ -1121,7 +1369,10 @@ async def nick_prefix(
     except Exception:
 
         await ctx.send(
-            t(ctx.author, "nickname_failed")
+            t(
+                ctx.author,
+                "nickname_failed"
+            )
         )
 
 
@@ -1130,7 +1381,9 @@ async def nick_prefix(
 # =========================================================
 
 @bot.command(name="purge")
-@commands.has_permissions(manage_messages=True)
+@commands.has_permissions(
+    manage_messages=True
+)
 async def purge_prefix(
     ctx,
     amount: int
@@ -1151,7 +1404,10 @@ async def purge_prefix(
         t(
             ctx.author,
             "purged",
-            amount=len(deleted) - 1
+            amount=max(
+                0,
+                len(deleted) - 1
+            )
         )
     )
 
@@ -1159,7 +1415,7 @@ async def purge_prefix(
 
     try:
         await msg.delete()
-    except:
+    except Exception:
         pass
 
 
@@ -1167,21 +1423,23 @@ async def purge_prefix(
     name="purge",
     description="Delete messages"
 )
-@app_commands.checks.has_permissions(manage_messages=True)
+@app_commands.checks.has_permissions(
+    manage_messages=True
+)
 async def purge_slash(
     interaction: discord.Interaction,
-    amount: app_commands.Range[int, 1, 100]
+    amount: app_commands.Range[
+        int,
+        1,
+        100
+    ]
 ):
-
-    await interaction.response.defer(
-        ephemeral=True
-    )
 
     deleted = await interaction.channel.purge(
         limit=amount
     )
 
-    await interaction.followup.send(
+    await interaction.response.send_message(
         t(
             interaction.user,
             "purged",
@@ -1196,7 +1454,9 @@ async def purge_slash(
 # =========================================================
 
 @bot.command(name="prefix")
-@commands.has_permissions(manage_guild=True)
+@commands.has_permissions(
+    manage_guild=True
+)
 async def prefix_prefix(
     ctx,
     new_prefix: str
@@ -1227,7 +1487,9 @@ async def prefix_prefix(
     name="prefix",
     description="Change the server prefix"
 )
-@app_commands.checks.has_permissions(manage_guild=True)
+@app_commands.checks.has_permissions(
+    manage_guild=True
+)
 async def prefix_slash(
     interaction: discord.Interaction,
     new_prefix: str
@@ -1265,10 +1527,15 @@ async def am_prefix(
     member: discord.Member = None
 ):
 
-    if not stats_enabled(ctx.guild.id):
+    if not stats_enabled(
+        ctx.guild.id
+    ):
 
         await ctx.send(
-            t(ctx.author, "stats_disabled")
+            t(
+                ctx.author,
+                "stats_disabled"
+            )
         )
         return
 
@@ -1311,30 +1578,44 @@ async def am_prefix(
     )
 
     embed.add_field(
-        name=t(ctx.author, "today"),
+        name=t(
+            ctx.author,
+            "today"
+        ),
         value=f"**{today}**",
         inline=True
     )
 
     embed.add_field(
-        name=t(ctx.author, "week"),
+        name=t(
+            ctx.author,
+            "week"
+        ),
         value=f"**{week}**",
         inline=True
     )
 
     embed.add_field(
-        name=t(ctx.author, "month"),
+        name=t(
+            ctx.author,
+            "month"
+        ),
         value=f"**{month}**",
         inline=True
     )
 
     embed.add_field(
-        name=t(ctx.author, "total"),
+        name=t(
+            ctx.author,
+            "total"
+        ),
         value=f"**{total}**",
         inline=False
     )
 
-    await ctx.send(embed=embed)
+    await ctx.send(
+        embed=embed
+    )
 
 
 @bot.tree.command(
@@ -1346,7 +1627,9 @@ async def am_slash(
     member: discord.Member | None = None
 ):
 
-    if not stats_enabled(interaction.guild.id):
+    if not stats_enabled(
+        interaction.guild.id
+    ):
 
         await interaction.response.send_message(
             t(
@@ -1396,25 +1679,37 @@ async def am_slash(
     )
 
     embed.add_field(
-        name=t(interaction.user, "today"),
+        name=t(
+            interaction.user,
+            "today"
+        ),
         value=f"**{today}**",
         inline=True
     )
 
     embed.add_field(
-        name=t(interaction.user, "week"),
+        name=t(
+            interaction.user,
+            "week"
+        ),
         value=f"**{week}**",
         inline=True
     )
 
     embed.add_field(
-        name=t(interaction.user, "month"),
+        name=t(
+            interaction.user,
+            "month"
+        ),
         value=f"**{month}**",
         inline=True
     )
 
     embed.add_field(
-        name=t(interaction.user, "total"),
+        name=t(
+            interaction.user,
+            "total"
+        ),
         value=f"**{total}**",
         inline=False
     )
@@ -1449,7 +1744,9 @@ PERIOD_CHOICES = [
 
 
 @bot.command(name="aset")
-@commands.has_permissions(administrator=True)
+@commands.has_permissions(
+    administrator=True
+)
 async def aset_prefix(
     ctx,
     period: str,
@@ -1457,18 +1754,15 @@ async def aset_prefix(
     member: discord.Member = None
 ):
 
-    period = period.lower()
-
     aliases = {
         "hoy": "today",
         "semana": "week",
-        "mes": "month",
-        "total": "total"
+        "mes": "month"
     }
 
     period = aliases.get(
-        period,
-        period
+        period.lower(),
+        period.lower()
     )
 
     if period not in (
@@ -1500,10 +1794,22 @@ async def aset_prefix(
     )
 
     period_name = {
-        "today": t(ctx.author, "today"),
-        "week": t(ctx.author, "week"),
-        "month": t(ctx.author, "month"),
-        "total": t(ctx.author, "total")
+        "today": t(
+            ctx.author,
+            "today"
+        ),
+        "week": t(
+            ctx.author,
+            "week"
+        ),
+        "month": t(
+            ctx.author,
+            "month"
+        ),
+        "total": t(
+            ctx.author,
+            "total"
+        )
     }[period]
 
     await ctx.send(
@@ -1521,12 +1827,20 @@ async def aset_prefix(
     name="aset",
     description="Set message statistics"
 )
-@app_commands.checks.has_permissions(administrator=True)
-@app_commands.choices(period=PERIOD_CHOICES)
+@app_commands.checks.has_permissions(
+    administrator=True
+)
+@app_commands.choices(
+    period=PERIOD_CHOICES
+)
 async def aset_slash(
     interaction: discord.Interaction,
     period: app_commands.Choice[str],
-    amount: app_commands.Range[int, 0, 1000000000],
+    amount: app_commands.Range[
+        int,
+        0,
+        1000000000
+    ],
     member: discord.Member | None = None
 ):
 
@@ -1540,10 +1854,22 @@ async def aset_slash(
     )
 
     period_name = {
-        "today": t(interaction.user, "today"),
-        "week": t(interaction.user, "week"),
-        "month": t(interaction.user, "month"),
-        "total": t(interaction.user, "total")
+        "today": t(
+            interaction.user,
+            "today"
+        ),
+        "week": t(
+            interaction.user,
+            "week"
+        ),
+        "month": t(
+            interaction.user,
+            "month"
+        ),
+        "total": t(
+            interaction.user,
+            "total"
+        )
     }[period.value]
 
     await interaction.response.send_message(
@@ -1558,11 +1884,13 @@ async def aset_slash(
 
 
 # =========================================================
-# ENABLE / DISABLE MESSAGE STATS
+# ENABLE / DISABLE STATS
 # =========================================================
 
 @bot.command(name="aenable")
-@commands.has_permissions(administrator=True)
+@commands.has_permissions(
+    administrator=True
+)
 async def aenable_prefix(ctx):
 
     set_stats_enabled(
@@ -1582,7 +1910,9 @@ async def aenable_prefix(ctx):
     name="aenable",
     description="Enable message statistics"
 )
-@app_commands.checks.has_permissions(administrator=True)
+@app_commands.checks.has_permissions(
+    administrator=True
+)
 async def aenable_slash(
     interaction: discord.Interaction
 ):
@@ -1601,7 +1931,9 @@ async def aenable_slash(
 
 
 @bot.command(name="adesable")
-@commands.has_permissions(administrator=True)
+@commands.has_permissions(
+    administrator=True
+)
 async def adesable_prefix(ctx):
 
     set_stats_enabled(
@@ -1621,7 +1953,9 @@ async def adesable_prefix(ctx):
     name="adesable",
     description="Disable message statistics"
 )
-@app_commands.checks.has_permissions(administrator=True)
+@app_commands.checks.has_permissions(
+    administrator=True
+)
 async def adesable_slash(
     interaction: discord.Interaction
 ):
@@ -1640,47 +1974,17 @@ async def adesable_slash(
 
 
 # =========================================================
-# PROMOTE / DEMOTE
+# PROMOTE
 # =========================================================
 
-async def get_highest_role(
-    guild,
-    member
-):
-
-    roles = [
-        role
-        for role in guild.roles
-        if role != guild.default_role
-        and role < guild.me.top_role
-    ]
-
-    roles.sort(
-        key=lambda role: role.position,
-        reverse=True
-    )
-
-    return roles
-
-
 @bot.command(name="promote")
-@commands.has_permissions(manage_roles=True)
+@commands.has_permissions(
+    manage_roles=True
+)
 async def promote_prefix(
     ctx,
     member: discord.Member
 ):
-
-    roles = await get_highest_role(
-        ctx.guild,
-        member
-    )
-
-    if not roles:
-
-        await ctx.send(
-            "❌ No available roles."
-        )
-        return
 
     current = member.top_role
 
@@ -1701,7 +2005,7 @@ async def promote_prefix(
 
     new_role = min(
         available,
-        key=lambda r: r.position
+        key=lambda role: role.position
     )
 
     try:
@@ -1730,7 +2034,9 @@ async def promote_prefix(
     name="promote",
     description="Promote a member"
 )
-@app_commands.checks.has_permissions(manage_roles=True)
+@app_commands.checks.has_permissions(
+    manage_roles=True
+)
 async def promote_slash(
     interaction: discord.Interaction,
     member: discord.Member
@@ -1756,7 +2062,7 @@ async def promote_slash(
 
     new_role = min(
         available,
-        key=lambda r: r.position
+        key=lambda role: role.position
     )
 
     try:
@@ -1782,8 +2088,14 @@ async def promote_slash(
         )
 
 
+# =========================================================
+# DEMOTE
+# =========================================================
+
 @bot.command(name="demote")
-@commands.has_permissions(manage_roles=True)
+@commands.has_permissions(
+    manage_roles=True
+)
 async def demote_prefix(
     ctx,
     member: discord.Member
@@ -1834,7 +2146,9 @@ async def demote_prefix(
     name="demote",
     description="Demote a member"
 )
-@app_commands.checks.has_permissions(manage_roles=True)
+@app_commands.checks.has_permissions(
+    manage_roles=True
+)
 async def demote_slash(
     interaction: discord.Interaction,
     member: discord.Member
@@ -1884,7 +2198,7 @@ async def demote_slash(
 
 
 # =========================================================
-# ROLE GROUP
+# ROLE
 # =========================================================
 
 role_group = app_commands.Group(
@@ -1897,7 +2211,9 @@ role_group = app_commands.Group(
     name="add",
     description="Add a role to a member"
 )
-@app_commands.checks.has_permissions(manage_roles=True)
+@app_commands.checks.has_permissions(
+    manage_roles=True
+)
 async def role_add_slash(
     interaction: discord.Interaction,
     member: discord.Member,
@@ -1914,7 +2230,9 @@ async def role_add_slash(
 
     try:
 
-        await member.add_roles(role)
+        await member.add_roles(
+            role
+        )
 
         await interaction.response.send_message(
             t(
@@ -1940,7 +2258,9 @@ async def role_add_slash(
     name="remove",
     description="Remove a role from a member"
 )
-@app_commands.checks.has_permissions(manage_roles=True)
+@app_commands.checks.has_permissions(
+    manage_roles=True
+)
 async def role_remove_slash(
     interaction: discord.Interaction,
     member: discord.Member,
@@ -1957,7 +2277,9 @@ async def role_remove_slash(
 
     try:
 
-        await member.remove_roles(role)
+        await member.remove_roles(
+            role
+        )
 
         await interaction.response.send_message(
             t(
@@ -1979,14 +2301,18 @@ async def role_remove_slash(
         )
 
 
-bot.tree.add_command(role_group)
+bot.tree.add_command(
+    role_group
+)
 
 
 @bot.group(
     name="role",
     invoke_without_command=True
 )
-@commands.has_permissions(manage_roles=True)
+@commands.has_permissions(
+    manage_roles=True
+)
 async def role_prefix(ctx):
 
     await ctx.send(
@@ -1997,7 +2323,9 @@ async def role_prefix(ctx):
 
 
 @role_prefix.command(name="add")
-@commands.has_permissions(manage_roles=True)
+@commands.has_permissions(
+    manage_roles=True
+)
 async def role_add_prefix(
     ctx,
     member: discord.Member,
@@ -2013,7 +2341,9 @@ async def role_add_prefix(
 
     try:
 
-        await member.add_roles(role)
+        await member.add_roles(
+            role
+        )
 
         await ctx.send(
             t(
@@ -2035,7 +2365,9 @@ async def role_add_prefix(
 
 
 @role_prefix.command(name="remove")
-@commands.has_permissions(manage_roles=True)
+@commands.has_permissions(
+    manage_roles=True
+)
 async def role_remove_prefix(
     ctx,
     member: discord.Member,
@@ -2051,7 +2383,9 @@ async def role_remove_prefix(
 
     try:
 
-        await member.remove_roles(role)
+        await member.remove_roles(
+            role
+        )
 
         await ctx.send(
             t(
@@ -2070,6 +2404,400 @@ async def role_remove_prefix(
                 "role_failed"
             )
         )
+
+
+# =========================================================
+# WARN
+# =========================================================
+
+@bot.command(name="warn")
+@commands.has_permissions(
+    moderate_members=True
+)
+async def warn_prefix(
+    ctx,
+    member: discord.Member,
+    *,
+    reason: str = "No reason provided"
+):
+
+    if member == ctx.author:
+
+        await ctx.send(
+            t(
+                ctx.author,
+                "cannot_self"
+            )
+        )
+        return
+
+    if member.bot:
+
+        await ctx.send(
+            "❌ You cannot warn a bot."
+        )
+        return
+
+    warning_id = add_warning(
+        ctx.guild.id,
+        member.id,
+        ctx.author.id,
+        reason
+    )
+
+    count = get_warning_count(
+        ctx.guild.id,
+        member.id
+    )
+
+    await ctx.send(
+        t(
+            ctx.author,
+            "warn_added",
+            member=member.mention,
+            reason=reason,
+            count=count,
+            max=MAX_WARNINGS
+        )
+    )
+
+    if count >= MAX_WARNINGS:
+
+        try:
+
+            until = discord.utils.utcnow() + timedelta(
+                seconds=AFK_TIMEOUT_SECONDS
+            )
+
+            await member.timeout(
+                until,
+                reason=f"Reached {MAX_WARNINGS} warnings"
+            )
+
+            await ctx.send(
+                t(
+                    ctx.author,
+                    "warn_timeout",
+                    member=member.mention,
+                    max=MAX_WARNINGS
+                )
+            )
+
+        except Exception as e:
+
+            print(
+                f"❌ Could not timeout warned user: {e}"
+            )
+
+
+@bot.tree.command(
+    name="warn",
+    description="Give a member a warning"
+)
+@app_commands.checks.has_permissions(
+    moderate_members=True
+)
+async def warn_slash(
+    interaction: discord.Interaction,
+    member: discord.Member,
+    reason: str = "No reason provided"
+):
+
+    if member == interaction.user:
+
+        await interaction.response.send_message(
+            t(
+                interaction.user,
+                "cannot_self"
+            ),
+            ephemeral=True
+        )
+        return
+
+    if member.bot:
+
+        await interaction.response.send_message(
+            "❌ You cannot warn a bot.",
+            ephemeral=True
+        )
+        return
+
+    add_warning(
+        interaction.guild.id,
+        member.id,
+        interaction.user.id,
+        reason
+    )
+
+    count = get_warning_count(
+        interaction.guild.id,
+        member.id
+    )
+
+    await interaction.response.send_message(
+        t(
+            interaction.user,
+            "warn_added",
+            member=member.mention,
+            reason=reason,
+            count=count,
+            max=MAX_WARNINGS
+        )
+    )
+
+    if count >= MAX_WARNINGS:
+
+        try:
+
+            until = discord.utils.utcnow() + timedelta(
+                seconds=AFK_TIMEOUT_SECONDS
+            )
+
+            await member.timeout(
+                until,
+                reason=f"Reached {MAX_WARNINGS} warnings"
+            )
+
+            await interaction.followup.send(
+                t(
+                    interaction.user,
+                    "warn_timeout",
+                    member=member.mention,
+                    max=MAX_WARNINGS
+                )
+            )
+
+        except Exception as e:
+
+            print(
+                f"❌ Could not timeout warned user: {e}"
+            )
+
+
+# =========================================================
+# WARNINGS
+# =========================================================
+
+@bot.command(name="warnings")
+async def warnings_prefix(
+    ctx,
+    member: discord.Member = None
+):
+
+    member = member or ctx.author
+
+    rows = get_warnings(
+        ctx.guild.id,
+        member.id
+    )
+
+    if not rows:
+
+        await ctx.send(
+            t(
+                ctx.author,
+                "no_warnings",
+                member=member.mention
+            )
+        )
+        return
+
+    embed = discord.Embed(
+        title=t(
+            ctx.author,
+            "warnings_title"
+        ),
+        description=t(
+            ctx.author,
+            "warnings_for",
+            member=member.mention
+        )
+    )
+
+    for index, row in enumerate(
+        rows,
+        start=1
+    ):
+
+        warning_id, moderator_id, reason, created_at = row
+
+        try:
+
+            date = datetime.fromisoformat(
+                created_at
+            ).strftime(
+                "%Y-%m-%d %H:%M UTC"
+            )
+
+        except Exception:
+
+            date = created_at
+
+        moderator = ctx.guild.get_member(
+            moderator_id
+        )
+
+        moderator_name = (
+            moderator.mention
+            if moderator
+            else f"<@{moderator_id}>"
+        )
+
+        embed.add_field(
+            name=f"Warning #{index}",
+            value=t(
+                ctx.author,
+                "warning_line",
+                number=index,
+                reason=reason,
+                moderator=moderator_name,
+                date=date
+            ),
+            inline=False
+        )
+
+    await ctx.send(
+        embed=embed
+    )
+
+
+@bot.tree.command(
+    name="warnings",
+    description="View a member's warnings"
+)
+async def warnings_slash(
+    interaction: discord.Interaction,
+    member: discord.Member | None = None
+):
+
+    member = member or interaction.user
+
+    rows = get_warnings(
+        interaction.guild.id,
+        member.id
+    )
+
+    if not rows:
+
+        await interaction.response.send_message(
+            t(
+                interaction.user,
+                "no_warnings",
+                member=member.mention
+            )
+        )
+        return
+
+    embed = discord.Embed(
+        title=t(
+            interaction.user,
+            "warnings_title"
+        ),
+        description=t(
+            interaction.user,
+            "warnings_for",
+            member=member.mention
+        )
+    )
+
+    for index, row in enumerate(
+        rows,
+        start=1
+    ):
+
+        warning_id, moderator_id, reason, created_at = row
+
+        try:
+
+            date = datetime.fromisoformat(
+                created_at
+            ).strftime(
+                "%Y-%m-%d %H:%M UTC"
+            )
+
+        except Exception:
+
+            date = created_at
+
+        moderator = interaction.guild.get_member(
+            moderator_id
+        )
+
+        moderator_name = (
+            moderator.mention
+            if moderator
+            else f"<@{moderator_id}>"
+        )
+
+        embed.add_field(
+            name=f"Warning #{index}",
+            value=t(
+                interaction.user,
+                "warning_line",
+                number=index,
+                reason=reason,
+                moderator=moderator_name,
+                date=date
+            ),
+            inline=False
+        )
+
+    await interaction.response.send_message(
+        embed=embed
+    )
+
+
+# =========================================================
+# CLEAR WARNS
+# =========================================================
+
+@bot.command(name="clearwarns")
+@commands.has_permissions(
+    moderate_members=True
+)
+async def clearwarns_prefix(
+    ctx,
+    member: discord.Member
+):
+
+    clear_warnings(
+        ctx.guild.id,
+        member.id
+    )
+
+    await ctx.send(
+        t(
+            ctx.author,
+            "warnings_cleared",
+            member=member.mention
+        )
+    )
+
+
+@bot.tree.command(
+    name="clearwarns",
+    description="Clear all warnings from a member"
+)
+@app_commands.checks.has_permissions(
+    moderate_members=True
+)
+async def clearwarns_slash(
+    interaction: discord.Interaction,
+    member: discord.Member
+):
+
+    clear_warnings(
+        interaction.guild.id,
+        member.id
+    )
+
+    await interaction.response.send_message(
+        t(
+            interaction.user,
+            "warnings_cleared",
+            member=member.mention
+        )
+    )
 
 
 # =========================================================
@@ -2106,18 +2834,20 @@ async def activate_afk(
         original_nick
     )
 
-    new_nick = member.display_name
+    display_name = member.display_name
 
-    if not new_nick.startswith("[AFK]"):
+    if not display_name.startswith("[AFK]"):
 
-        new_nick = f"[AFK] {new_nick}"
+        display_name = (
+            f"[AFK] {display_name}"
+        )
 
-    new_nick = new_nick[:32]
+    display_name = display_name[:32]
 
     try:
 
         await member.edit(
-            nick=new_nick,
+            nick=display_name,
             reason="AFK enabled"
         )
 
@@ -2136,7 +2866,6 @@ async def deactivate_afk(
     )
 
     if not data:
-
         return []
 
     reason, original_nick = data
@@ -2222,16 +2951,18 @@ async def afk_slash(
 async def on_message(message):
 
     if message.author.bot:
-
         return
 
     if message.guild is None:
 
-        await bot.process_commands(message)
+        await bot.process_commands(
+            message
+        )
+
         return
 
     # -----------------------------------------
-    # MESSAGE STATISTICS
+    # MESSAGE STATS
     # -----------------------------------------
 
     record_message(
@@ -2241,7 +2972,7 @@ async def on_message(message):
     )
 
     # -----------------------------------------
-    # AFK: USER RETURNS
+    # AFK RETURN
     # -----------------------------------------
 
     own_afk = get_afk(
@@ -2263,6 +2994,7 @@ async def on_message(message):
             )
         )
 
+        # AFK return message stays for 2 seconds
         await asyncio.sleep(2)
 
         try:
@@ -2304,7 +3036,7 @@ async def on_message(message):
                 pass
 
     # -----------------------------------------
-    # CHECK MENTIONS OF AFK USERS
+    # AFK MENTIONS
     # -----------------------------------------
 
     for mentioned in message.mentions:
@@ -2323,7 +3055,7 @@ async def on_message(message):
         if not afk_data:
             continue
 
-        reason, _ = afk_data
+        reason, original_nick = afk_data
 
         view = AFKMessageView(
             message.guild.id,
@@ -2341,14 +3073,16 @@ async def on_message(message):
         )
 
     # -----------------------------------------
-    # PROCESS PREFIX COMMANDS
+    # PREFIX COMMANDS
     # -----------------------------------------
 
-    await bot.process_commands(message)
+    await bot.process_commands(
+        message
+    )
 
 
 # =========================================================
-# COMMAND ERROR HANDLERS
+# PREFIX ERRORS
 # =========================================================
 
 @bot.event
@@ -2388,6 +3122,19 @@ async def on_command_error(
 
     if isinstance(
         error,
+        commands.MemberNotFound
+    ):
+
+        await ctx.send(
+            t(
+                ctx.author,
+                "user_not_found"
+            )
+        )
+        return
+
+    if isinstance(
+        error,
         commands.BadArgument
     ):
 
@@ -2400,6 +3147,10 @@ async def on_command_error(
         f"❌ Prefix command error: {error}"
     )
 
+
+# =========================================================
+# SLASH ERRORS
+# =========================================================
 
 @bot.tree.error
 async def on_app_command_error(
@@ -2462,6 +3213,8 @@ async def on_app_command_error(
 # START
 # =========================================================
 
-print("🚀 Starting Abel Moderation Bot...")
+print(
+    "🚀 Starting Abel Moderation Bot..."
+)
 
 bot.run(TOKEN)
