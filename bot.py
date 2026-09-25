@@ -23,6 +23,7 @@ PREFIX_DB = "prefixes.db"
 MESSAGES_DB = "messages.db"
 AFK_DB = "afk.db"
 WARNINGS_DB = "warnings.db"
+WELCOME_LEAVE_DB = "welcome_leave.db"
 
 MAX_WARNINGS = 3
 WARNING_TIMEOUT_SECONDS = 60 * 60
@@ -214,6 +215,101 @@ def init_warnings_db():
 
 
 # =========================================================
+# WELCOME / LEAVE DATABASE
+# =========================================================
+
+def init_welcome_leave_db():
+
+    with sqlite3.connect(WELCOME_LEAVE_DB) as conn:
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS welcome_settings (
+                guild_id INTEGER PRIMARY KEY,
+                channel_id INTEGER NOT NULL
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS leave_settings (
+                guild_id INTEGER PRIMARY KEY,
+                channel_id INTEGER NOT NULL
+            )
+        """)
+
+        conn.commit()
+
+
+def set_welcome_channel(guild_id, channel_id):
+
+    with sqlite3.connect(WELCOME_LEAVE_DB) as conn:
+
+        conn.execute("""
+            INSERT INTO welcome_settings (
+                guild_id,
+                channel_id
+            )
+            VALUES (?, ?)
+            ON CONFLICT(guild_id)
+            DO UPDATE SET channel_id = excluded.channel_id
+        """, (
+            guild_id,
+            channel_id
+        ))
+
+        conn.commit()
+
+
+def set_leave_channel(guild_id, channel_id):
+
+    with sqlite3.connect(WELCOME_LEAVE_DB) as conn:
+
+        conn.execute("""
+            INSERT INTO leave_settings (
+                guild_id,
+                channel_id
+            )
+            VALUES (?, ?)
+            ON CONFLICT(guild_id)
+            DO UPDATE SET channel_id = excluded.channel_id
+        """, (
+            guild_id,
+            channel_id
+        ))
+
+        conn.commit()
+
+
+def get_welcome_channel(guild_id):
+
+    with sqlite3.connect(WELCOME_LEAVE_DB) as conn:
+
+        row = conn.execute("""
+            SELECT channel_id
+            FROM welcome_settings
+            WHERE guild_id = ?
+        """, (
+            guild_id,
+        )).fetchone()
+
+    return row[0] if row else None
+
+
+def get_leave_channel(guild_id):
+
+    with sqlite3.connect(WELCOME_LEAVE_DB) as conn:
+
+        row = conn.execute("""
+            SELECT channel_id
+            FROM leave_settings
+            WHERE guild_id = ?
+        """, (
+            guild_id,
+        )).fetchone()
+
+    return row[0] if row else None
+
+
+# =========================================================
 # INIT DATABASES
 # =========================================================
 
@@ -221,6 +317,7 @@ init_prefix_db()
 init_messages_db()
 init_afk_db()
 init_warnings_db()
+init_welcome_leave_db()
 
 
 # =========================================================
@@ -266,9 +363,6 @@ def utcnow():
 # =========================================================
 # AUTOMATIC RANK DETECTION
 # =========================================================
-
-# Roles containing these words are considered utility roles,
-# not rank roles.
 
 SPECIAL_ROLE_WORDS = {
     "verified",
@@ -366,7 +460,6 @@ def get_automatic_rank_roles(guild):
 
         roles.append(role)
 
-    # Lowest -> highest
     roles.sort(
         key=lambda role: role.position
     )
@@ -389,7 +482,6 @@ def get_current_rank(member):
     if not member_rank_roles:
         return None
 
-    # Highest rank the member currently has
     return max(
         member_rank_roles,
         key=lambda role: role.position
@@ -421,17 +513,14 @@ def get_promote_roles(member):
 
     for role in rank_roles:
 
-        # Don't show current rank or lower ranks
         if role.position <= current_position:
             continue
 
-        # Bot cannot manage roles above/equal to its top role
         if role >= bot_member.top_role:
             continue
 
         available.append(role)
 
-    # Highest first
     available.sort(
         key=lambda role: role.position,
         reverse=True
@@ -463,7 +552,6 @@ def get_demote_roles(member):
 
     for role in rank_roles:
 
-        # Only lower ranks
         if role.position >= current_rank.position:
             continue
 
@@ -472,7 +560,6 @@ def get_demote_roles(member):
 
         available.append(role)
 
-    # Highest lower rank first
     available.sort(
         key=lambda role: role.position,
         reverse=True
@@ -686,7 +773,6 @@ async def change_member_rank(
             "The user already has that rank."
         )
 
-    # Remove old rank
     if current_rank:
 
         try:
@@ -712,7 +798,6 @@ async def change_member_rank(
                 "Discord rejected the role change."
             )
 
-    # Add new rank
     try:
 
         await member.add_roles(
@@ -722,7 +807,6 @@ async def change_member_rank(
 
     except discord.Forbidden:
 
-        # Restore previous rank if possible
         if current_rank:
 
             try:
@@ -3050,6 +3134,154 @@ bot.tree.add_command(
 
 
 # =========================================================
+# WELCOME SETUP
+# =========================================================
+
+@bot.tree.command(
+    name="welcomesetup",
+    description="Set the channel for welcome messages."
+)
+@app_commands.describe(
+    channel="Channel where welcome messages will be sent"
+)
+@app_commands.default_permissions(
+    administrator=True
+)
+async def welcomesetup_slash(
+    interaction,
+    channel: discord.TextChannel
+):
+
+    set_welcome_channel(
+        interaction.guild.id,
+        channel.id
+    )
+
+    await interaction.response.send_message(
+        f"✅ Welcome channel has been set to {channel.mention}."
+    )
+
+
+# =========================================================
+# LEAVE SETUP
+# =========================================================
+
+@bot.tree.command(
+    name="leavesetup",
+    description="Set the channel for leave messages."
+)
+@app_commands.describe(
+    channel="Channel where leave messages will be sent"
+)
+@app_commands.default_permissions(
+    administrator=True
+)
+async def leavesetup_slash(
+    interaction,
+    channel: discord.TextChannel
+):
+
+    set_leave_channel(
+        interaction.guild.id,
+        channel.id
+    )
+
+    await interaction.response.send_message(
+        f"✅ Leave channel has been set to {channel.mention}."
+    )
+
+
+# =========================================================
+# MEMBER JOIN
+# =========================================================
+
+@bot.event
+async def on_member_join(member):
+
+    channel_id = get_welcome_channel(
+        member.guild.id
+    )
+
+    if not channel_id:
+        return
+
+    channel = member.guild.get_channel(
+        channel_id
+    )
+
+    if channel is None:
+        return
+
+    member_count = member.guild.member_count
+
+    try:
+
+        await channel.send(
+            f"{member.mention} "
+            f"Thx for joining this server, **{member.guild.name}!** "
+            f"You make us **{member_count} members.**"
+        )
+
+    except discord.Forbidden:
+
+        print(
+            f"❌ I cannot send welcome messages in #{channel.name} "
+            f"on {member.guild.name}."
+        )
+
+    except discord.HTTPException as e:
+
+        print(
+            f"❌ Welcome message error: {e}"
+        )
+
+
+# =========================================================
+# MEMBER LEAVE
+# =========================================================
+
+@bot.event
+async def on_member_remove(member):
+
+    channel_id = get_leave_channel(
+        member.guild.id
+    )
+
+    if not channel_id:
+        return
+
+    channel = member.guild.get_channel(
+        channel_id
+    )
+
+    if channel is None:
+        return
+
+    member_count = member.guild.member_count
+
+    try:
+
+        await channel.send(
+            f"{member.mention} "
+            f"See you, why you leave us? "
+            f"You make us **{member_count} members.**"
+        )
+
+    except discord.Forbidden:
+
+        print(
+            f"❌ I cannot send leave messages in #{channel.name} "
+            f"on {member.guild.name}."
+        )
+
+    except discord.HTTPException as e:
+
+        print(
+            f"❌ Leave message error: {e}"
+        )
+
+
+# =========================================================
 # ON MESSAGE
 # =========================================================
 
@@ -3368,6 +3600,14 @@ async def on_ready():
 
     print(
         "✅ Role management loaded"
+    )
+
+    print(
+        "✅ Welcome system loaded"
+    )
+
+    print(
+        "✅ Leave system loaded"
     )
 
     print(
